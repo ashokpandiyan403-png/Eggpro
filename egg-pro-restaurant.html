@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Egg-Pro — Restaurant</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+  body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; }
+</style>
+</head>
+<body class="bg-[#FBF3E7]">
+<div id="root">Loading...</div>
+
+<script>
+var e = React.createElement;
+var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function money(n) { return "₹" + Number(n || 0).toFixed(2); }
+
+// ---------- Login ----------
+function Login() {
+  var [email, setEmail] = React.useState("");
+  var [password, setPassword] = React.useState("");
+  var [err, setErr] = React.useState("");
+  var [loading, setLoading] = React.useState(false);
+
+  function handleLogin(ev) {
+    ev.preventDefault();
+    setLoading(true); setErr("");
+    supabase.auth.signInWithPassword({ email: email, password: password }).then(function(res) {
+      if (res.error) setErr(res.error.message);
+      setLoading(false);
+    });
+  }
+
+  return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
+    e('form', { onSubmit: handleLogin, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
+      e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
+        e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#5B7553', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' } }, '🏪'),
+        e('div', null,
+          e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'ஹோட்டல் Panel'),
+          e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Egg-Pro')
+        )
+      ),
+      e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
+        style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+      e('input', { type: 'password', placeholder: 'Password', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
+        style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+      err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
+      e('button', { type: 'submit', disabled: loading,
+        style: { width: '100%', background: '#5B7553', color: 'white', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none' } },
+        loading ? '...' : 'Login')
+    )
+  );
+}
+
+// ---------- Restaurant Home ----------
+function RestaurantHome(props) {
+  var session = props.session;
+  var [tab, setTab] = React.useState('orders');
+  var [restaurantId, setRestaurantId] = React.useState(null);
+  var [orders, setOrders] = React.useState([]);
+  var [menu, setMenu] = React.useState([]);
+  var [loading, setLoading] = React.useState(true);
+  var [errMsg, setErrMsg] = React.useState("");
+
+  function loadOrders(rid) {
+    return supabase.from("orders").select("*, order_items(*), addresses:delivery_address_id(full_address)")
+      .eq("restaurant_id", rid).in("status", ["placed", "accepted", "preparing"])
+      .order("placed_at", { ascending: true })
+      .then(function(res) { setOrders(res.data || []); });
+  }
+  function loadMenu(rid) {
+    return supabase.from("menu_items").select("*").eq("restaurant_id", rid).order("name_en")
+      .then(function(res) { setMenu(res.data || []); });
+  }
+
+  function refreshAll() {
+    setLoading(true);
+    supabase.from("restaurants").select("id").eq("owner_id", session.user.id).then(function(res) {
+      if (res.error) { setErrMsg(res.error.message); setLoading(false); return; }
+      if (!res.data || res.data.length === 0) {
+        setErrMsg("இந்த account-க்கு restaurant இணைக்கப்படவில்லை (owner_id set பண்ணவில்லை)");
+        setLoading(false); return;
+      }
+      var rid = res.data[0].id;
+      setRestaurantId(rid);
+      Promise.all([loadOrders(rid), loadMenu(rid)]).then(function() { setLoading(false); });
+    });
+  }
+
+  React.useEffect(function() { refreshAll(); }, []);
+
+  function advance(orderId, status) {
+    var patch = { status: status };
+    if (status === "accepted") patch.accepted_at = new Date().toISOString();
+    if (status === "pickup") {
+      // Auto-assign an available on-duty rider to this order
+      supabase.from("riders").select("id").eq("is_active", true).eq("is_available", true).limit(1).then(function(rres) {
+        if (rres.data && rres.data[0]) {
+          patch.rider_id = rres.data[0].id;
+          supabase.from("orders").update(patch).eq("id", orderId).then(function() {
+            supabase.from("riders").update({ current_order_id: orderId }).eq("id", rres.data[0].id).then(function() { loadOrders(restaurantId); });
+          });
+        } else {
+          alert("இப்போ Duty-ல் யாரும் rider இல்லை — rider app-ல் Duty ON பண்ணச் சொல்லுங்க");
+          supabase.from("orders").update(patch).eq("id", orderId).then(function() { loadOrders(restaurantId); });
+        }
+      });
+      return;
+    }
+    supabase.from("orders").update(patch).eq("id", orderId).then(function() { loadOrders(restaurantId); });
+  }
+
+  var content;
+  if (loading) {
+    content = e('p', { style: { color: '#8A6D3B', padding: 16 } }, 'Loading...');
+  } else if (errMsg) {
+    content = e('p', { style: { color: '#C1442E', padding: 16, textAlign: 'center' } }, errMsg);
+  } else if (tab === 'orders') {
+    content = e('div', { style: { padding: 16 } },
+      orders.length === 0 ? e('p', { style: { textAlign: 'center', color: '#C9BBA8', padding: 24 } }, 'தற்போது புதிய ஆர்டர்கள் இல்லை') :
+      orders.map(function(o) {
+        var buttons = null;
+        if (o.status === 'placed') {
+          buttons = e('div', { style: { display: 'flex', gap: 8 } },
+            e('button', { onClick: function(){ advance(o.id, 'accepted'); }, style: { flex: 1, background: '#5B7553', color: 'white', fontSize: 12, fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, '✓ Accept'),
+            e('button', { onClick: function(){ advance(o.id, 'cancelled'); }, style: { flex: 1, background: '#F3E9D8', color: '#8A6D3B', fontSize: 12, fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, '✕ Reject')
+          );
+        } else if (o.status === 'accepted') {
+          buttons = e('button', { onClick: function(){ advance(o.id, 'preparing'); }, style: { width: '100%', background: '#E8A33D', color: '#1C1410', fontSize: 12, fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, '🍳 சமைக்க தொடங்கு');
+        } else if (o.status === 'preparing') {
+          buttons = e('button', { onClick: function(){ advance(o.id, 'pickup'); }, style: { width: '100%', background: '#1C1410', color: '#E8A33D', fontSize: 12, fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, 'பிக்அப்-க்கு தயார்');
+        }
+        var itemLines = (o.order_items || []).map(function(it) { return it.name_ta + ' × ' + it.quantity; });
+        return e('div', { key: o.id, style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8', marginBottom: 12 } },
+          e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+            e('div', null,
+              e('p', { style: { fontWeight: 'bold', fontSize: 14, margin: 0 } }, 'ஆர்டர் #' + o.id),
+              e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, o.addresses ? o.addresses.full_address : ''),
+              e('span', { style: { fontSize: 10, fontWeight: 600, color: o.payment_status === 'paid' ? '#5B7553' : '#C1442E' } },
+                o.payment_status === 'paid' ? '✅ Paid' : '⏳ Payment Pending')
+            ),
+            e('span', { style: { fontSize: 12, fontWeight: 'bold', background: '#FFF6E8', color: '#C1442E', padding: '4px 8px', borderRadius: 20 } }, money(o.total_amount))
+          ),
+          e('p', { style: { fontSize: 12, color: '#5B4326', marginBottom: 12 } }, itemLines.join(', ')),
+          buttons
+        );
+      })
+    );
+  } else {
+    content = e(MenuManager, { restaurantId: restaurantId, menu: menu, onChange: function(){ loadMenu(restaurantId); } });
+  }
+
+  function setMyLocation() {
+    if (!navigator.geolocation) { alert("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      supabase.from("restaurants").update({
+        latitude: pos.coords.latitude, longitude: pos.coords.longitude
+      }).eq("id", restaurantId).then(function(res) {
+        if (res.error) alert("Error: " + res.error.message);
+        else alert("📍 Location Save ஆயிடுச்சு!");
+      });
+    }, function(err) { alert("Location பெற முடியல: " + err.message); }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  return e('div', { style: { minHeight: '100vh', paddingBottom: 32 } },
+    e('div', { style: { background: '#5B7553', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      e('div', null,
+        e('p', { style: { fontWeight: 'bold', margin: 0 } }, 'ஹோட்டல் Panel'),
+        e('p', { style: { fontSize: 11, margin: 0, color: '#E4EEDC' } }, 'Egg-Pro')
+      ),
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+        e('button', { onClick: setMyLocation, style: { color: 'white', background: 'rgba(255,255,255,0.15)', border: 'none', fontSize: 12, padding: '6px 10px', borderRadius: 10 } }, '📍 Location'),
+        e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: 'white', background: 'none', border: 'none' } }, '⎋ Logout')
+      )
+    ),
+    e('div', { style: { display: 'flex', gap: 8, padding: 16 } },
+      e('button', { onClick: function(){ setTab('orders'); }, style: { flex: 1, padding: 10, borderRadius: 12, fontSize: 14, fontWeight: 500, border: tab==='orders' ? 'none' : '1px solid #EEE0C8', background: tab==='orders' ? '#1C1410' : 'white', color: tab==='orders' ? 'white' : '#8A6D3B' } }, 'ஆர்டர்கள்'),
+      e('button', { onClick: function(){ setTab('menu'); }, style: { flex: 1, padding: 10, borderRadius: 12, fontSize: 14, fontWeight: 500, border: tab==='menu' ? 'none' : '1px solid #EEE0C8', background: tab==='menu' ? '#1C1410' : 'white', color: tab==='menu' ? 'white' : '#8A6D3B' } }, 'மெனு')
+    ),
+    content
+  );
+}
+
+// ---------- Menu Manager ----------
+function MenuManager(props) {
+  var [showForm, setShowForm] = React.useState(false);
+  var [name_en, setNameEn] = React.useState("");
+  var [name_ta, setNameTa] = React.useState("");
+  var [price, setPrice] = React.useState("");
+  var [saving, setSaving] = React.useState(false);
+
+  function save() {
+    setSaving(true);
+    supabase.from("menu_items").insert({
+      restaurant_id: props.restaurantId, name_en: name_en, name_ta: name_ta,
+      price: Number(price), is_egg_item: true
+    }).then(function() {
+      setSaving(false); setShowForm(false);
+      setNameEn(""); setNameTa(""); setPrice("");
+      props.onChange();
+    });
+  }
+
+  function toggleAvailable(item) {
+    supabase.from("menu_items").update({ is_available: !item.is_available }).eq("id", item.id).then(function() { props.onChange(); });
+  }
+
+  return e('div', { style: { padding: 16 } },
+    e('button', { onClick: function(){ setShowForm(!showForm); }, style: { background: '#1C1410', color: '#E8A33D', fontSize: 14, fontWeight: 600, padding: '10px 16px', borderRadius: 12, border: 'none', marginBottom: 12 } }, '+ புதிய முட்டை உணவு சேர்'),
+    showForm ? e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8', marginBottom: 12 } },
+      e('input', { placeholder: 'Name (English)', value: name_en, onChange: function(ev){ setNameEn(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+      e('input', { placeholder: 'பெயர் (தமிழ்)', value: name_ta, onChange: function(ev){ setNameTa(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+      e('input', { type: 'number', placeholder: 'Price (₹)', value: price, onChange: function(ev){ setPrice(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+      e('button', { onClick: save, disabled: saving, style: { width: '100%', background: '#5B7553', color: 'white', fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, saving ? '...' : 'Save')
+    ) : null,
+    props.menu.map(function(m) {
+      return e('div', { key: m.id, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        e('div', null,
+          e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, m.name_ta),
+          e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, m.name_en + ' · ' + money(m.price))
+        ),
+        e('button', { onClick: function(){ toggleAvailable(m); }, style: { fontSize: 10, fontWeight: 'bold', padding: '4px 8px', borderRadius: 20, border: 'none', background: m.is_available ? '#F0F5EC' : '#F3E9D8', color: m.is_available ? '#5B7553' : '#8A6D3B' } }, m.is_available ? 'கிடைக்கும்' : 'இல்லை')
+      );
+    })
+  );
+}
+
+// ---------- Root ----------
+function App() {
+  var [session, setSession] = React.useState(null);
+  var [checked, setChecked] = React.useState(false);
+
+  React.useEffect(function() {
+    supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
+    supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
+  }, []);
+
+  if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+  return session ? e(RestaurantHome, { session: session }) : e(Login);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
