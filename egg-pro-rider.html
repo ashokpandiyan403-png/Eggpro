@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Egg-Pro — Rider</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+  body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; }
+</style>
+</head>
+<body class="bg-[#FBF3E7]">
+<div id="root">Loading...</div>
+
+<script>
+var e = React.createElement;
+var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function money(n) { return "₹" + Number(n || 0).toFixed(2); }
+
+// ---------- Login ----------
+function Login() {
+  var [phone, setPhone] = React.useState("");
+  var [password, setPassword] = React.useState("");
+  var [err, setErr] = React.useState("");
+  var [loading, setLoading] = React.useState(false);
+
+  function handleLogin(ev) {
+    ev.preventDefault();
+    setLoading(true); setErr("");
+    supabase.auth.signInWithPassword({ email: phone + "@riders.muttaiexpress.app", password: password }).then(function(res) {
+      if (res.error) setErr(res.error.message);
+      setLoading(false);
+    });
+  }
+
+  return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
+    e('form', { onSubmit: handleLogin, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
+      e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
+        e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#C1442E', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' } }, '🛵'),
+        e('div', null,
+          e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'டெலிவரி Rider'),
+          e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Egg-Pro')
+        )
+      ),
+      e('input', { type: 'tel', placeholder: 'Phone Number', required: true, value: phone, onChange: function(ev){ setPhone(ev.target.value); },
+        style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+      e('input', { type: 'password', placeholder: 'Password', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
+        style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+      err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
+      e('button', { type: 'submit', disabled: loading,
+        style: { width: '100%', background: '#C1442E', color: 'white', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none' } },
+        loading ? '...' : 'Login')
+    )
+  );
+}
+
+// ---------- Rider Home ----------
+function RiderHome(props) {
+  var session = props.session;
+  var [rider, setRider] = React.useState(null);
+  var [order, setOrder] = React.useState(null);
+  var [loading, setLoading] = React.useState(true);
+  var [busy, setBusy] = React.useState(false);
+  var [errMsg, setErrMsg] = React.useState("");
+  var [tab, setTab] = React.useState('task'); // task | earnings
+  var [earnings, setEarnings] = React.useState({ today: 0, total: 0, todayCount: 0, totalCount: 0 });
+
+  function loadEarnings(riderId) {
+    supabase.from("orders").select("delivery_fee, delivered_at").eq("rider_id", riderId).eq("status", "delivered")
+      .then(function(res) {
+        var rows = res.data || [];
+        var todayStr = new Date().toDateString();
+        var today = 0, total = 0, todayCount = 0;
+        rows.forEach(function(r) {
+          var fee = Number(r.delivery_fee || 0);
+          total += fee;
+          if (r.delivered_at && new Date(r.delivered_at).toDateString() === todayStr) { today += fee; todayCount++; }
+        });
+        setEarnings({ today: today, total: total, todayCount: todayCount, totalCount: rows.length });
+      });
+  }
+
+  function loadRider() {
+    supabase.from("riders").select("*").eq("profile_id", session.user.id).then(function(res) {
+      if (res.error || !res.data || res.data.length === 0) {
+        setErrMsg("உங்க account rider-ஆ இணைக்கப்படவில்லை");
+        setLoading(false); return;
+      }
+      var r = res.data[0];
+      setRider(r);
+      loadEarnings(r.id);
+      if (r.current_order_id) {
+        supabase.from("orders").select("*, restaurants(name, address, phone), addresses:delivery_address_id(full_address), profiles:customer_id(full_name, phone)")
+          .eq("id", r.current_order_id).then(function(ores) {
+            setOrder(ores.data ? ores.data[0] : null);
+            setLoading(false);
+          });
+      } else {
+        setOrder(null);
+        setLoading(false);
+      }
+    });
+  }
+
+  React.useEffect(function() { loadRider(); }, []);
+
+  // Live location tracking: while on duty, push GPS to DB every 15s
+  React.useEffect(function() {
+    if (!rider || !rider.is_active) return;
+    function pushLocation() {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(function(pos) {
+        supabase.from("riders").update({
+          current_lat: pos.coords.latitude, current_lng: pos.coords.longitude,
+          location_updated_at: new Date().toISOString()
+        }).eq("id", rider.id).then(function(){});
+      }, function(){}, { enableHighAccuracy: true, timeout: 8000 });
+    }
+    pushLocation();
+    var iv = setInterval(pushLocation, 15000);
+    return function() { clearInterval(iv); };
+  }, [rider && rider.id, rider && rider.is_active]);
+
+  function toggleDuty() {
+    setBusy(true);
+    supabase.from("riders").update({ is_active: !rider.is_active }).eq("id", rider.id).then(function() { loadRider(); setBusy(false); });
+  }
+  function markPickedUp() {
+    setBusy(true);
+    supabase.from("orders").update({ status: "onway" }).eq("id", order.id).then(function() { loadRider(); setBusy(false); });
+  }
+  function markDelivered() {
+    setBusy(true);
+    supabase.from("orders").update({ status: "delivered", delivered_at: new Date().toISOString(), rider_id: rider.id }).eq("id", order.id).then(function() {
+      supabase.from("riders").update({ is_available: true, current_order_id: null }).eq("id", rider.id).then(function() { loadRider(); setBusy(false); });
+    });
+  }
+
+  if (loading) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+
+  return e('div', { style: { minHeight: '100vh', paddingBottom: 32 } },
+    e('div', { style: { background: '#C1442E', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      e('div', null,
+        e('p', { style: { fontWeight: 'bold', margin: 0 } }, 'வணக்கம்' + (rider ? ', ' + rider.name : '')),
+        e('p', { style: { fontSize: 11, margin: 0, color: 'rgba(255,255,255,0.8)' } }, 'Egg-Pro Rider')
+      ),
+      e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: 'white', background: 'none', border: 'none' } }, '⎋ Logout')
+    ),
+    !errMsg ? e('div', { style: { display: 'flex', gap: 8, padding: 16, paddingBottom: 0 } },
+      e('button', { onClick: function(){ setTab('task'); }, style: { flex: 1, padding: 10, borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 13,
+        background: tab === 'task' ? '#1C1410' : 'white', color: tab === 'task' ? '#E8A33D' : '#8A6D3B' } }, 'Task'),
+      e('button', { onClick: function(){ setTab('earnings'); }, style: { flex: 1, padding: 10, borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 13,
+        background: tab === 'earnings' ? '#1C1410' : 'white', color: tab === 'earnings' ? '#E8A33D' : '#8A6D3B' } }, '💰 சம்பாத்தியம்')
+    ) : null,
+    e('div', { style: { padding: 16 } },
+      errMsg ? e('p', { style: { color: '#C1442E', textAlign: 'center', padding: 24 } }, errMsg) :
+      tab === 'earnings' ? e('div', null,
+        e('div', { style: { background: '#1C1410', borderRadius: 16, padding: 20, marginBottom: 12, textAlign: 'center' } },
+          e('p', { style: { color: '#C9BBA8', fontSize: 12, margin: 0 } }, 'இன்றைய சம்பாத்தியம்'),
+          e('p', { style: { color: '#E8A33D', fontSize: 32, fontWeight: 'bold', margin: '4px 0' } }, money(earnings.today)),
+          e('p', { style: { color: '#8A6D3B', fontSize: 12, margin: 0 } }, earnings.todayCount + ' deliveries')
+        ),
+        e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8' } },
+          e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+            e('span', { style: { color: '#8A6D3B', fontSize: 13 } }, 'மொத்த சம்பாத்தியம்'),
+            e('span', { style: { fontWeight: 'bold', fontSize: 13 } }, money(earnings.total))
+          ),
+          e('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+            e('span', { style: { color: '#8A6D3B', fontSize: 13 } }, 'மொத்த deliveries'),
+            e('span', { style: { fontWeight: 'bold', fontSize: 13 } }, earnings.totalCount)
+          )
+        ),
+        e('p', { style: { fontSize: 11, color: '#C9BBA8', textAlign: 'center', marginTop: 12 } }, '(தூரம் அடிப்படையில் · ₹10/km)')
+      ) :
+      e('div', null,
+        e('button', { onClick: toggleDuty, disabled: busy || !!order,
+          style: { width: '100%', padding: 14, borderRadius: 16, fontWeight: 600, fontSize: 14, border: 'none', marginBottom: 16,
+            background: rider && rider.is_active ? '#5B7553' : '#F3E9D8', color: rider && rider.is_active ? 'white' : '#8A6D3B' } },
+          rider && rider.is_active ? '🔌 Duty-ல் இருக்கிறீர்கள் · On Duty' : '🔌 Duty தொடங்க தட்டவும்'
+        ),
+        !order ? e('div', { style: { textAlign: 'center', padding: 60, color: '#C9BBA8' } },
+          e('p', { style: { fontSize: 40, margin: 0 } }, '🛵'),
+          e('p', { style: { fontSize: 14 } }, 'இப்போது delivery task இல்லை')
+        ) : e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8' } },
+          e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
+            e('p', { style: { fontSize: 11, color: '#8A6D3B', fontWeight: 600, margin: 0 } }, 'ஆர்டர் #' + order.id),
+            e('span', { style: { fontSize: 12, fontWeight: 'bold', color: '#5B7553', background: '#EAF2E5', padding: '3px 8px', borderRadius: 20 } }, '💰 ' + money(order.delivery_fee))
+          ),
+          e('div', { style: { paddingBottom: 12, marginBottom: 12, borderBottom: '1px solid #F3E9D8' } },
+            e('p', { style: { fontSize: 14, fontWeight: 600, margin: 0 } }, '🏪 ' + (order.restaurants ? order.restaurants.name : '')),
+            e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, order.restaurants ? order.restaurants.address : '')
+          ),
+          e('div', { style: { marginBottom: 16 } },
+            e('p', { style: { fontSize: 14, fontWeight: 600, margin: 0 } }, '📍 ' + (order.profiles ? order.profiles.full_name : '')),
+            e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, order.addresses ? order.addresses.full_address : '')
+          ),
+          order.status === 'pickup' ? e('button', { onClick: markPickedUp, disabled: busy, style: { width: '100%', background: '#5B7553', color: 'white', fontWeight: 600, padding: 12, borderRadius: 12, border: 'none' } }, '📦 ஹோட்டலில் இருந்து எடுத்தேன்') :
+          order.status === 'onway' ? e('button', { onClick: markDelivered, disabled: busy, style: { width: '100%', background: '#C1442E', color: 'white', fontWeight: 600, padding: 12, borderRadius: 12, border: 'none' } }, '✅ வழங்கப்பட்டது') : null
+        )
+      )
+    )
+  );
+}
+
+// ---------- Root ----------
+function App() {
+  var [session, setSession] = React.useState(null);
+  var [checked, setChecked] = React.useState(false);
+
+  React.useEffect(function() {
+    supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
+    supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
+  }, []);
+
+  if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+  return session ? e(RiderHome, { session: session }) : e(Login);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
