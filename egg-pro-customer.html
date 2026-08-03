@@ -356,4 +356,57 @@ function CustomerHome(props) {
     ),
     cartCount > 0 ? e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', padding: 16, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' } },
       e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
-        e('span', { style: { fontSize: 13, color: '#8A6D3B' } }, '📍 தூரம் (Di
+        e('span', { style: { fontSize: 13, color: '#8A6D3B' } }, '📍 தூரம் (Distance)'),
+        gpsDistanceKm !== null ? e('span', { style: { fontWeight: 600, fontSize: 13, color: '#5B7553' } }, distanceKm + ' km (GPS)') :
+        e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          e('button', { onClick: function(){ setManualDistanceKm(Math.max(1, manualDistanceKm - 1)); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '−'),
+          e('span', { style: { fontWeight: 600, fontSize: 13, minWidth: 60, textAlign: 'center' } }, distanceKm + ' km (est)'),
+          e('button', { onClick: function(){ setManualDistanceKm(manualDistanceKm + 1); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '+')
+        )
+      ),
+      e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 2, display: 'flex', justifyContent: 'space-between' } },
+        e('span', null, 'உணவு மொத்தம்'), e('span', null, money(cartTotal))
+      ),
+      e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
+        e('span', null, 'டெலிவரி கட்டணம் (' + distanceKm + 'km × ₹10)'), e('span', null, money(deliveryFee))
+      ),
+      e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } },
+        e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
+      ),
+      !paymentDone ? e('div', null,
+        e('button', { onClick: openPaymentLink,
+          style: { width: '100%', background: '#5B7553', color: 'white', padding: 12, borderRadius: 14, border: 'none', fontWeight: 600, marginBottom: 8 } },
+          '💳 ' + money(grandTotal) + ' Pay பண்ணுங்க'),
+        e('p', { style: { fontSize: 10, color: '#8A6D3B', textAlign: 'center', margin: '0 0 8px' } }, '(மேல திறக்கும் page-ல் Amount ' + Math.round(grandTotal) + ' type பண்ணி pay பண்ணுங்க)'),
+        e('button', { onClick: function(){ setPaymentDone(true); },
+          style: { width: '100%', background: '#EAF2E5', color: '#1C1410', padding: 10, borderRadius: 14, border: '1px solid #5B7553', fontWeight: 600 } },
+          '✅ Payment பண்ணிட்டேன்')
+      ) : e('div', null,
+        e('p', { style: { fontSize: 12, color: '#5B7553', textAlign: 'center', marginBottom: 8, fontWeight: 600 } }, '✅ Payment Confirmed'),
+        e('button', { onClick: placeOrder, disabled: placing || !addressId || !addressLatLng,
+          style: { width: '100%', background: (!addressId || !addressLatLng ? '#C9BBA8' : '#1C1410'), color: 'white', padding: 14, borderRadius: 16, border: 'none', fontWeight: 600 } },
+          !addressLatLng ? '📍 மேலே Location set பண்ணுங்க' : placing ? 'Placing order...' : (cartCount + ' items · ' + money(grandTotal) + ' · Order செய்')
+        )
+      )
+    ) : null
+  );
+}
+
+// ---------- Root ----------
+function App() {
+  var [session, setSession] = React.useState(null);
+  var [checked, setChecked] = React.useState(false);
+
+  React.useEffect(function() {
+    supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
+    supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
+  }, []);
+
+  if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+  return session ? e(CustomerHome, { session: session }) : e(Login);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
