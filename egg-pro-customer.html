@@ -10,402 +10,445 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
-  body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; }
 </style>
 </head>
 <body class="bg-[#FBF3E7]">
 <div id="root">Loading...</div>
-
 <script>
 var e = React.createElement;
 var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var RESTAURANT_ID = "f86c4c39-d788-4cf6-bb76-7a326770c0e2"; // Amma's Egg Corner
-var RAZORPAY_ME_LINK = "https://razorpay.me/@paulpandianashokraj";
+
+// ⚠️ இதை உங்க Razorpay Dashboard-ல் இருந்து "Key ID" (public key) மாற்றவும்.
+// Settings → API Keys → Key ID (rzp_test_... அல்லது rzp_live_...)
+var RAZORPAY_KEY_ID = "rzp_test_TLdBDCyGNjAPLV";
 
 function money(n) { return "₹" + Number(n || 0).toFixed(2); }
-
 function haversineKm(lat1, lng1, lat2, lng2) {
-  var R = 6371;
-  var dLat = (lat2 - lat1) * Math.PI / 180;
-  var dLng = (lng2 - lng1) * Math.PI / 180;
-  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+var R = 6371;
+var dLat = (lat2 - lat1) * Math.PI / 180;
+var dLng = (lng2 - lng1) * Math.PI / 180;
+var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+Math.sin(dLng/2) * Math.sin(dLng/2);
+var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+return R * c;
 }
 
 // ---------- Login / Signup (combined) ----------
 function Login() {
-  var [email, setEmail] = React.useState("");
-  var [password, setPassword] = React.useState("");
-  var [err, setErr] = React.useState("");
-  var [loading, setLoading] = React.useState(false);
-  var [mode, setMode] = React.useState("login"); // login | signup
+var [email, setEmail] = React.useState("");
+var [password, setPassword] = React.useState("");
+var [err, setErr] = React.useState("");
+var [loading, setLoading] = React.useState(false);
+var [mode, setMode] = React.useState("login"); // login | signup
 
-  function submit(ev) {
-    ev.preventDefault();
-    setLoading(true); setErr("");
-    var action = mode === "login"
-      ? supabase.auth.signInWithPassword({ email: email, password: password })
-      : supabase.auth.signUp({ email: email, password: password });
-    action.then(function(res) {
-      if (res.error) setErr(res.error.message);
-      setLoading(false);
-    });
-  }
+function submit(ev) {
+ev.preventDefault();
+setLoading(true); setErr("");
+var action = mode === "login"
+? supabase.auth.signInWithPassword({ email: email, password: password })
+: supabase.auth.signUp({ email: email, password: password });
+action.then(function(res) {
+if (res.error) setErr(res.error.message);
+setLoading(false);
+});
+}
 
-  return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
-    e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
-      e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
-        e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#E8A33D', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, '🥚'),
-        e('div', null,
-          e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro'),
-          e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, mode === 'login' ? 'Login' : 'Sign Up')
-        )
-      ),
-      e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
-        style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
-      e('input', { type: 'password', placeholder: 'Password (min 6 chars)', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
-        style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
-      err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
-      e('button', { type: 'submit', disabled: loading,
-        style: { width: '100%', background: '#C1442E', color: 'white', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none', marginBottom: 12 } },
-        loading ? '...' : (mode === 'login' ? 'Login' : 'Sign Up')),
-      e('button', { type: 'button', onClick: function(){ setMode(mode === 'login' ? 'signup' : 'login'); },
-        style: { width: '100%', background: 'none', border: 'none', fontSize: 12, color: '#8A6D3B' } },
-        mode === 'login' ? 'Account இல்லையா? Sign Up' : 'ஏற்கனவே account இருக்கா? Login')
-    )
-  );
+return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
+e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
+e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#E8A33D', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, '🥚'),
+e('div', null,
+e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, mode === 'login' ? 'Login' : 'Sign Up')
+)
+),
+e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
+style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+e('input', { type: 'password', placeholder: 'Password (min 6 chars)', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
+style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
+e('button', { type: 'submit', disabled: loading,
+style: { width: '100%', background: '#C1442E', color: 'white', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none', marginBottom: 12 } },
+loading ? '...' : (mode === 'login' ? 'Login' : 'Sign Up')),
+e('button', { type: 'button', onClick: function(){ setMode(mode === 'login' ? 'signup' : 'login'); },
+style: { width: '100%', background: 'none', border: 'none', fontSize: 12, color: '#8A6D3B' } },
+mode === 'login' ? 'Account இல்லையா? Sign Up' : 'ஏற்கனவே account இருக்கா? Login')
+)
+);
 }
 
 // ---------- Live Tracking Map ----------
 function TrackingMap(props) {
-  var mapRef = React.useRef(null);
-  var mapObjRef = React.useRef(null);
-  var riderMarkerRef = React.useRef(null);
-  var [riderPos, setRiderPos] = React.useState(null);
+var mapRef = React.useRef(null);
+var mapObjRef = React.useRef(null);
+var riderMarkerRef = React.useRef(null);
+var [riderPos, setRiderPos] = React.useState(null);
 
-  React.useEffect(function() {
-    if (!mapRef.current || mapObjRef.current) return;
-    var center = props.restaurantLatLng || props.addressLatLng || { lat: 8.178, lng: 77.428 };
-    var map = L.map(mapRef.current).setView([center.lat, center.lng], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-    if (props.restaurantLatLng) {
-      L.marker([props.restaurantLatLng.lat, props.restaurantLatLng.lng]).addTo(map).bindPopup('🏪 ஹோட்டல்');
-    }
-    if (props.addressLatLng) {
-      L.marker([props.addressLatLng.lat, props.addressLatLng.lng]).addTo(map).bindPopup('🏠 உங்க முகவரி');
-    }
-    mapObjRef.current = map;
-    setTimeout(function() { map.invalidateSize(); }, 200);
-  }, []);
+React.useEffect(function() {
+if (!mapRef.current || mapObjRef.current) return;
+var center = props.restaurantLatLng || props.addressLatLng || { lat: 8.178, lng: 77.428 };
+var map = L.map(mapRef.current).setView([center.lat, center.lng], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+if (props.restaurantLatLng) {
+L.marker([props.restaurantLatLng.lat, props.restaurantLatLng.lng]).addTo(map).bindPopup('🏪 ஹோட்டல்');
+}
+if (props.addressLatLng) {
+L.marker([props.addressLatLng.lat, props.addressLatLng.lng]).addTo(map).bindPopup('🏠 உங்க முகவரி');
+}
+mapObjRef.current = map;
+setTimeout(function() { map.invalidateSize(); }, 200);
+}, []);
 
-  React.useEffect(function() {
-    if (!props.riderId) return;
-    function fetchPos() {
-      supabase.from("riders").select("current_lat, current_lng").eq("id", props.riderId).then(function(res) {
-        if (res.data && res.data[0] && res.data[0].current_lat) {
-          setRiderPos({ lat: res.data[0].current_lat, lng: res.data[0].current_lng });
-        }
-      });
-    }
-    fetchPos();
-    var channel = supabase.channel('rider-pos-' + props.riderId)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'riders', filter: 'id=eq.' + props.riderId }, function(payload) {
-        if (payload.new.current_lat) setRiderPos({ lat: payload.new.current_lat, lng: payload.new.current_lng });
-      }).subscribe();
-    return function() { supabase.removeChannel(channel); };
-  }, [props.riderId]);
+React.useEffect(function() {
+if (!props.riderId) return;
+function fetchPos() {
+supabase.from("riders").select("current_lat, current_lng").eq("id", props.riderId).then(function(res) {
+if (res.data && res.data[0] && res.data[0].current_lat) {
+setRiderPos({ lat: res.data[0].current_lat, lng: res.data[0].current_lng });
+}
+});
+}
+fetchPos();
+var channel = supabase.channel('rider-pos-' + props.riderId)
+.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'riders', filter: 'id=eq.' + props.riderId }, function(payload) {
+if (payload.new.current_lat) setRiderPos({ lat: payload.new.current_lat, lng: payload.new.current_lng });
+}).subscribe();
+return function() { supabase.removeChannel(channel); };
+}, [props.riderId]);
 
-  React.useEffect(function() {
-    if (!riderPos || !mapObjRef.current) return;
-    if (riderMarkerRef.current) {
-      riderMarkerRef.current.setLatLng([riderPos.lat, riderPos.lng]);
-    } else {
-      var bikeIcon = L.divIcon({ html: '🏍️', className: '', iconSize: [24, 24] });
-      riderMarkerRef.current = L.marker([riderPos.lat, riderPos.lng], { icon: bikeIcon }).addTo(mapObjRef.current).bindPopup('🏍️ Rider');
-    }
-    mapObjRef.current.panTo([riderPos.lat, riderPos.lng]);
-  }, [riderPos]);
+React.useEffect(function() {
+if (!riderPos || !mapObjRef.current) return;
+if (riderMarkerRef.current) {
+riderMarkerRef.current.setLatLng([riderPos.lat, riderPos.lng]);
+} else {
+var bikeIcon = L.divIcon({ html: '🏍️', className: '', iconSize: [24, 24] });
+riderMarkerRef.current = L.marker([riderPos.lat, riderPos.lng], { icon: bikeIcon }).addTo(mapObjRef.current).bindPopup('🏍️ Rider');
+}
+mapObjRef.current.panTo([riderPos.lat, riderPos.lng]);
+}, [riderPos]);
 
-  return e('div', { style: { marginTop: 12 } },
-    e('div', { ref: mapRef, style: { width: '100%', height: 220, borderRadius: 16, border: '1px solid #EEE0C8', overflow: 'hidden' } }),
-    props.riderId && !riderPos ? e('p', { style: { fontSize: 11, color: '#8A6D3B', textAlign: 'center', marginTop: 6 } }, 'Rider location தேடுறோம்...') : null
-  );
+return e('div', { style: { marginTop: 12 } },
+e('div', { ref: mapRef, style: { width: '100%', height: 220, borderRadius: 16, border: '1px solid #EEE0C8', overflow: 'hidden' } }),
+props.riderId && !riderPos ? e('p', { style: { fontSize: 11, color: '#8A6D3B', textAlign: 'center', marginTop: 6 } }, 'Rider location தேடுறோம்...') : null
+);
 }
 
 // ---------- Customer Home ----------
 function CustomerHome(props) {
-  var session = props.session;
-  var [screen, setScreen] = React.useState('menu'); // menu | track
-  var [menu, setMenu] = React.useState([]);
-  var [cart, setCart] = React.useState({});
-  var [addressId, setAddressId] = React.useState(null);
-  var [addressText, setAddressText] = React.useState("");
-  var [addressLatLng, setAddressLatLng] = React.useState(null); // {lat, lng} or null
-  var [restaurantLatLng, setRestaurantLatLng] = React.useState(null);
-  var [gpsBusy, setGpsBusy] = React.useState(false);
-  var [gpsErr, setGpsErr] = React.useState("");
-  var [orderId, setOrderId] = React.useState(null);
-  var [orderStatus, setOrderStatus] = React.useState(null);
-  var [loading, setLoading] = React.useState(true);
-  var [placing, setPlacing] = React.useState(false);
+var session = props.session;
+var [screen, setScreen] = React.useState('menu'); // menu | track
+var [menu, setMenu] = React.useState([]);
+var [cart, setCart] = React.useState({});
+var [addressId, setAddressId] = React.useState(null);
+var [addressText, setAddressText] = React.useState("");
+var [addressLatLng, setAddressLatLng] = React.useState(null); // {lat, lng} or null
+var [restaurantLatLng, setRestaurantLatLng] = React.useState(null);
+var [gpsBusy, setGpsBusy] = React.useState(false);
+var [gpsErr, setGpsErr] = React.useState("");
+var [orderId, setOrderId] = React.useState(null);
+var [orderStatus, setOrderStatus] = React.useState(null);
+var [loading, setLoading] = React.useState(true);
+var [placing, setPlacing] = React.useState(false);
 
-  function captureLocation() {
-    if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
-    setGpsBusy(true); setGpsErr("");
-    navigator.geolocation.getCurrentPosition(function(pos) {
-      var lat = pos.coords.latitude, lng = pos.coords.longitude;
-      // Free reverse-geocoding via OpenStreetMap Nominatim (no API key needed)
-      fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lng)
-        .then(function(r) { return r.json(); })
-        .then(function(geo) {
-          var text = (geo && geo.display_name) ? geo.display_name : (lat.toFixed(5) + ", " + lng.toFixed(5));
-          var payload = { customer_id: session.user.id, label: "Home", full_address: text, latitude: lat, longitude: lng };
-          var op = addressId
-            ? supabase.from("addresses").update(payload).eq("id", addressId).select()
-            : supabase.from("addresses").insert(payload).select();
-          op.then(function(res) {
-            setGpsBusy(false);
-            if (res.error) { setGpsErr(res.error.message); return; }
-            if (res.data && res.data[0]) {
-              setAddressId(res.data[0].id);
-              setAddressText(text);
-              setAddressLatLng({ lat: lat, lng: lng });
-            }
-          });
-        }).catch(function() {
-          setGpsBusy(false); setGpsErr("Address தேட முடியல, ஆனா location கிடைச்சது");
-          setAddressLatLng({ lat: lat, lng: lng });
-        });
-    }, function(err) { setGpsBusy(false); setGpsErr("Location அனுமதி கொடுங்க: " + err.message); }, { enableHighAccuracy: true, timeout: 10000 });
-  }
+function captureLocation() {
+if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
+setGpsBusy(true); setGpsErr("");
+navigator.geolocation.getCurrentPosition(function(pos) {
+var lat = pos.coords.latitude, lng = pos.coords.longitude;
+fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lng)
+.then(function(r) { return r.json(); })
+.then(function(geo) {
+var text = (geo && geo.display_name) ? geo.display_name : (lat.toFixed(5) + ", " + lng.toFixed(5));
+var payload = { customer_id: session.user.id, label: "Home", full_address: text, latitude: lat, longitude: lng };
+var op = addressId
+? supabase.from("addresses").update(payload).eq("id", addressId).select()
+: supabase.from("addresses").insert(payload).select();
+op.then(function(res) {
+setGpsBusy(false);
+if (res.error) { setGpsErr(res.error.message); return; }
+if (res.data && res.data[0]) {
+setAddressId(res.data[0].id);
+setAddressText(text);
+setAddressLatLng({ lat: lat, lng: lng });
+}
+});
+}).catch(function() {
+setGpsBusy(false); setGpsErr("Address தேட முடியல, ஆனா location கிடைச்சது");
+setAddressLatLng({ lat: lat, lng: lng });
+});
+}, function(err) { setGpsBusy(false); setGpsErr("Location அனுமதி கொடுங்க: " + err.message); }, { enableHighAccuracy: true, timeout: 10000 });
+}
 
-  React.useEffect(function() {
-    // Restaurant's saved location (for distance calculation)
-    supabase.from("restaurants").select("latitude, longitude").eq("id", RESTAURANT_ID).then(function(res) {
-      if (res.data && res.data[0] && res.data[0].latitude) {
-        setRestaurantLatLng({ lat: res.data[0].latitude, lng: res.data[0].longitude });
-      }
-    });
-    // Step 1: Ensure profile exists FIRST (addresses has a foreign key to profiles,
-    // so the address insert must wait until the profile row is confirmed to exist)
-    supabase.from("profiles").select("id").eq("id", session.user.id).then(function(res) {
-      var ensureProfile = (res.data && res.data.length > 0)
-        ? Promise.resolve()
-        : supabase.from("profiles").insert({ id: session.user.id, full_name: "Test Customer", phone: "9000000000", role: "customer" });
+React.useEffect(function() {
+supabase.from("restaurants").select("latitude, longitude").eq("id", RESTAURANT_ID).then(function(res) {
+if (res.data && res.data[0] && res.data[0].latitude) {
+setRestaurantLatLng({ lat: res.data[0].latitude, lng: res.data[0].longitude });
+}
+});
 
-      Promise.resolve(ensureProfile).then(function(pres) {
-        if (pres && pres.error) { console.error("profile error", pres.error); }
-        // Step 2: Now that profile is guaranteed to exist, ensure address
-        supabase.from("addresses").select("id, full_address, latitude, longitude").eq("customer_id", session.user.id).then(function(ares) {
-          if (ares.data && ares.data.length > 0) {
-            var a = ares.data[0];
-            setAddressId(a.id);
-            setAddressText(a.full_address);
-            if (a.latitude) setAddressLatLng({ lat: a.latitude, lng: a.longitude });
-          } else {
-            supabase.from("addresses").insert({
-              customer_id: session.user.id, label: "Home",
-              full_address: "📍 Location set பண்ணுங்க"
-            }).select().then(function(ires) {
-              if (ires.error) { console.error("address error", ires.error); alert("Address create error: " + ires.error.message); return; }
-              if (ires.data && ires.data[0]) { setAddressId(ires.data[0].id); setAddressText(ires.data[0].full_address); }
-            });
-          }
-        });
-      });
-    });
-    // Load menu
-    supabase.from("menu_items").select("*").eq("restaurant_id", RESTAURANT_ID).eq("is_available", true).then(function(res) {
-      setMenu(res.data || []);
-      setLoading(false);
-    });
-  }, []);
+supabase.from("profiles").select("id").eq("id", session.user.id).then(function(res) {
+var ensureProfile = (res.data && res.data.length > 0)
+? Promise.resolve()
+: supabase.from("profiles").insert({ id: session.user.id, full_name: "Test Customer", phone: "9000000000", role: "customer" });
+Promise.resolve(ensureProfile).then(function(pres) {
+if (pres && pres.error) { console.error("profile error", pres.error); }
+supabase.from("addresses").select("id, full_address, latitude, longitude").eq("customer_id", session.user.id).then(function(ares) {
+if (ares.data && ares.data.length > 0) {
+var a = ares.data[0];
+setAddressId(a.id);
+setAddressText(a.full_address);
+if (a.latitude) setAddressLatLng({ lat: a.latitude, lng: a.longitude });
+} else {
+supabase.from("addresses").insert({
+customer_id: session.user.id, label: "Home",
+full_address: "📍 Location set பண்ணுங்க"
+}).select().then(function(ires) {
+if (ires.error) { console.error("address error", ires.error); alert("Address create error: " + ires.error.message); return; }
+if (ires.data && ires.data[0]) { setAddressId(ires.data[0].id); setAddressText(ires.data[0].full_address); }
+});
+}
+});
+});
+});
 
-  function addItem(id) { setCart(function(c) { var n = Object.assign({}, c); n[id] = (n[id] || 0) + 1; return n; }); }
-  function removeItem(id) { setCart(function(c) { var n = Object.assign({}, c); n[id] = (n[id] || 0) - 1; if (n[id] <= 0) delete n[id]; return n; }); }
+supabase.from("menu_items").select("*").eq("restaurant_id", RESTAURANT_ID).eq("is_available", true).then(function(res) {
+setMenu(res.data || []);
+setLoading(false);
+});
+}, []);
 
-  var [manualDistanceKm, setManualDistanceKm] = React.useState(2);
-  var gpsDistanceKm = (addressLatLng && restaurantLatLng)
-    ? haversineKm(addressLatLng.lat, addressLatLng.lng, restaurantLatLng.lat, restaurantLatLng.lng)
-    : null;
-  var distanceKm = gpsDistanceKm !== null ? Math.max(0.5, Math.round(gpsDistanceKm * 10) / 10) : manualDistanceKm;
-  var cartCount = Object.values(cart).reduce(function(a, b) { return a + b; }, 0);
-  var cartTotal = Object.keys(cart).reduce(function(sum, id) {
-    var item = menu.filter(function(m) { return m.id === id; })[0];
-    return sum + (item ? item.price * cart[id] : 0);
-  }, 0);
-  var DELIVERY_RATE_PER_KM = 10;
-  var deliveryFee = Math.round(distanceKm * DELIVERY_RATE_PER_KM);
-  var grandTotal = cartTotal + deliveryFee;
+function addItem(id) { setCart(function(c) { var n = Object.assign({}, c); n[id] = (n[id] || 0) + 1; return n; }); }
+function removeItem(id) { setCart(function(c) { var n = Object.assign({}, c); n[id] = (n[id] || 0) - 1; if (n[id] <= 0) delete n[id]; return n; }); }
 
-  var [paymentDone, setPaymentDone] = React.useState(false);
+var [manualDistanceKm, setManualDistanceKm] = React.useState(2);
+var gpsDistanceKm = (addressLatLng && restaurantLatLng)
+? haversineKm(addressLatLng.lat, addressLatLng.lng, restaurantLatLng.lat, restaurantLatLng.lng)
+: null;
+var distanceKm = gpsDistanceKm !== null ? Math.max(0.5, Math.round(gpsDistanceKm * 10) / 10) : manualDistanceKm;
 
-  function openPaymentLink() {
-    window.open(RAZORPAY_ME_LINK, '_blank');
-  }
+var cartCount = Object.values(cart).reduce(function(a, b) { return a + b; }, 0);
+var cartTotal = Object.keys(cart).reduce(function(sum, id) {
+var item = menu.filter(function(m) { return m.id === id; })[0];
+return sum + (item ? item.price * cart[id] : 0);
+}, 0);
+var DELIVERY_RATE_PER_KM = 10;
+var deliveryFee = Math.round(distanceKm * DELIVERY_RATE_PER_KM);
+var grandTotal = cartTotal + deliveryFee;
 
-  function placeOrder() {
-    if (!addressId) { alert("Address தயார் ஆகல, ஒரு நிமிடம் காத்திருந்து try பண்ணுங்க"); return; }
-    setPlacing(true);
-    supabase.from("orders").insert({
-      customer_id: session.user.id, restaurant_id: RESTAURANT_ID,
-      delivery_address_id: addressId, subtotal: cartTotal, delivery_fee: deliveryFee, status: "placed",
-      payment_status: paymentDone ? "paid" : "pending"
-    }).select().then(function(res) {
-      if (res.error || !res.data || !res.data[0]) { alert("Order Error: " + (res.error ? res.error.message : "unknown")); setPlacing(false); return; }
-      var newOrder = res.data[0];
-      var items = Object.keys(cart).map(function(id) {
-        var m = menu.filter(function(mm) { return mm.id === id; })[0];
-        return { order_id: newOrder.id, menu_item_id: m.id, name_en: m.name_en, name_ta: m.name_ta, unit_price: m.price, quantity: cart[id] };
-      });
-      supabase.from("order_items").insert(items).then(function(ires) {
-        setPlacing(false);
-        if (ires.error) { alert("Order items error: " + ires.error.message); return; }
-        setOrderId(newOrder.id);
-        setOrderStatus("placed");
-        setCart({});
-        setPaymentDone(false);
-        setScreen('track');
-      });
-    });
-  }
+// ---------- Razorpay Payment (real verification) ----------
+var [paymentDone, setPaymentDone] = React.useState(false);
+var [payBusy, setPayBusy] = React.useState(false);
+var [rzpPaymentId, setRzpPaymentId] = React.useState(null);
+var [rzpOrderId, setRzpOrderId] = React.useState(null);
 
-  var [trackRiderId, setTrackRiderId] = React.useState(null);
+function startPayment() {
+if (typeof Razorpay === 'undefined') { alert("Payment library load ஆகல. Internet சரி பாருங்க."); return; }
+setPayBusy(true);
+fetch(SUPABASE_URL + "/functions/v1/create-razorpay-order", {
+method: "POST",
+headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+body: JSON.stringify({ amount: grandTotal })
+}).then(function(r) { return r.json(); }).then(function(order) {
+if (!order || !order.id) { setPayBusy(false); alert("Payment order create ஆகல. மறுபடி try பண்ணுங்க."); return; }
 
-  React.useEffect(function() {
-    if (!orderId) return;
-    var channel = supabase.channel('order-' + orderId)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'id=eq.' + orderId }, function(payload) {
-        setOrderStatus(payload.new.status);
-        if (payload.new.rider_id) setTrackRiderId(payload.new.rider_id);
-      }).subscribe();
-    // Also check immediately in case rider was already assigned
-    supabase.from("orders").select("rider_id").eq("id", orderId).then(function(res) {
-      if (res.data && res.data[0] && res.data[0].rider_id) setTrackRiderId(res.data[0].rider_id);
-    });
-    return function() { supabase.removeChannel(channel); };
-  }, [orderId]);
+var options = {
+key: RAZORPAY_KEY_ID,
+amount: order.amount,
+currency: "INR",
+name: "Egg-Pro",
+description: "Order Payment",
+order_id: order.id,
+handler: function(response) {
+fetch(SUPABASE_URL + "/functions/v1/verify-razorpay-payment", {
+method: "POST",
+headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+body: JSON.stringify({
+razorpay_order_id: response.razorpay_order_id,
+razorpay_payment_id: response.razorpay_payment_id,
+razorpay_signature: response.razorpay_signature
+})
+}).then(function(vr) { return vr.json(); }).then(function(vres) {
+setPayBusy(false);
+if (vres && vres.verified) {
+setPaymentDone(true);
+setRzpPaymentId(response.razorpay_payment_id);
+setRzpOrderId(response.razorpay_order_id);
+} else {
+alert("Payment verify ஆகல. தொகை பிடித்தமிருந்தால் support-ஐ தொடர்பு கொள்ளுங்க.");
+}
+});
+},
+modal: { ondismiss: function() { setPayBusy(false); } },
+prefill: { email: session.user.email || "" },
+theme: { color: "#C1442E" }
+};
 
-  if (screen === 'track') {
-    var stages = [
-      { key: 'placed', ta: 'ஆர்டர் பதிவு' },
-      { key: 'accepted', ta: 'ஏற்றுக்கொள்ளப்பட்டது' },
-      { key: 'preparing', ta: 'தயார் செய்யப்படுகிறது' },
-      { key: 'pickup', ta: 'எடுக்கப்பட்டது' },
-      { key: 'onway', ta: 'வழியில் உள்ளது' },
-      { key: 'delivered', ta: 'வழங்கப்பட்டது' }
-    ];
-    var idx = stages.map(function(s){return s.key;}).indexOf(orderStatus);
-    return e('div', { style: { padding: 16 } },
-      e('p', { style: { fontWeight: 'bold', fontSize: 16 } }, 'ஆர்டர் #' + orderId + ' Tracking'),
-      e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8', marginTop: 12 } },
-        stages.map(function(s, i) {
-          var done = i <= idx;
-          return e('p', { key: s.key, style: { fontWeight: done ? 700 : 400, color: done ? '#1C1410' : '#C9BBA8', padding: '6px 0' } },
-            (done ? '✅ ' : '⚪ ') + s.ta);
-        })
-      ),
-      (restaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: restaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
-      e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16, background: '#1C1410', color: 'white', padding: 10, borderRadius: 12, border: 'none', width: '100%' } }, 'மெனுவுக்கு திரும்பு')
-    );
-  }
+var rzp = new Razorpay(options);
+rzp.on('payment.failed', function() { setPayBusy(false); alert("Payment தோல்வியடைந்தது. மறுபடி try பண்ணுங்க."); });
+rzp.open();
+}).catch(function() {
+setPayBusy(false);
+alert("Payment ஆரம்பிக்க முடியல். Internet check பண்ணுங்க.");
+});
+}
 
-  return e('div', { style: { minHeight: '100vh', paddingBottom: 220 } },
-    e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
-      e('div', null,
-        e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🥚 Egg-Pro'),
-        e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, 'Only Egg Dishes')
-      ),
-      e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋')
-    ),
-    e('div', { style: { padding: '12px 16px 0' } },
-      e('div', { style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 } },
-        e('div', { style: { minWidth: 0, flex: 1 } },
-          e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, '📍 Delivery Address'),
-          e('p', { style: { fontSize: 12, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, addressText || 'இன்னும் set பண்ணல'),
-          gpsErr ? e('p', { style: { fontSize: 10, color: '#C1442E', margin: 0 } }, gpsErr) : null
-        ),
-        e('button', { onClick: captureLocation, disabled: gpsBusy,
-          style: { fontSize: 11, background: '#1C1410', color: '#E8A33D', border: 'none', padding: '8px 10px', borderRadius: 10, whiteSpace: 'nowrap' } },
-          gpsBusy ? '...' : '📍 Location')
-      )
-    ),
-    e('div', { style: { padding: 16 } },
-      loading ? e('p', null, 'Loading menu...') :
-      menu.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 24 } }, 'மெனு காலியா இருக்கு — Restaurant app-ல் items add பண்ணுங்க') :
-      menu.map(function(m) {
-        return e('div', { key: m.id, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-          e('div', null,
-            e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, m.name_ta),
-            e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, m.name_en + ' · ' + money(m.price))
-          ),
-          cart[m.id] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-            e('button', { onClick: function(){ removeItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '−'),
-            e('span', null, cart[m.id]),
-            e('button', { onClick: function(){ addItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '+')
-          ) : e('button', { onClick: function(){ addItem(m.id); }, style: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D' } }, '+')
-        );
-      })
-    ),
-    cartCount > 0 ? e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', padding: 16, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' } },
-      e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
-        e('span', { style: { fontSize: 13, color: '#8A6D3B' } }, '📍 தூரம் (Distance)'),
-        gpsDistanceKm !== null ? e('span', { style: { fontWeight: 600, fontSize: 13, color: '#5B7553' } }, distanceKm + ' km (GPS)') :
-        e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          e('button', { onClick: function(){ setManualDistanceKm(Math.max(1, manualDistanceKm - 1)); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '−'),
-          e('span', { style: { fontWeight: 600, fontSize: 13, minWidth: 60, textAlign: 'center' } }, distanceKm + ' km (est)'),
-          e('button', { onClick: function(){ setManualDistanceKm(manualDistanceKm + 1); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '+')
-        )
-      ),
-      e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 2, display: 'flex', justifyContent: 'space-between' } },
-        e('span', null, 'உணவு மொத்தம்'), e('span', null, money(cartTotal))
-      ),
-      e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
-        e('span', null, 'டெலிவரி கட்டணம் (' + distanceKm + 'km × ₹10)'), e('span', null, money(deliveryFee))
-      ),
-      e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } },
-        e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
-      ),
-      !paymentDone ? e('div', null,
-        e('button', { onClick: openPaymentLink,
-          style: { width: '100%', background: '#5B7553', color: 'white', padding: 12, borderRadius: 14, border: 'none', fontWeight: 600, marginBottom: 8 } },
-          '💳 ' + money(grandTotal) + ' Pay பண்ணுங்க'),
-        e('p', { style: { fontSize: 10, color: '#8A6D3B', textAlign: 'center', margin: '0 0 8px' } }, '(மேல திறக்கும் page-ல் Amount ' + Math.round(grandTotal) + ' type பண்ணி pay பண்ணுங்க)'),
-        e('button', { onClick: function(){ setPaymentDone(true); },
-          style: { width: '100%', background: '#EAF2E5', color: '#1C1410', padding: 10, borderRadius: 14, border: '1px solid #5B7553', fontWeight: 600 } },
-          '✅ Payment பண்ணிட்டேன்')
-      ) : e('div', null,
-        e('p', { style: { fontSize: 12, color: '#5B7553', textAlign: 'center', marginBottom: 8, fontWeight: 600 } }, '✅ Payment Confirmed'),
-        e('button', { onClick: placeOrder, disabled: placing || !addressId || !addressLatLng,
-          style: { width: '100%', background: (!addressId || !addressLatLng ? '#C9BBA8' : '#1C1410'), color: 'white', padding: 14, borderRadius: 16, border: 'none', fontWeight: 600 } },
-          !addressLatLng ? '📍 மேலே Location set பண்ணுங்க' : placing ? 'Placing order...' : (cartCount + ' items · ' + money(grandTotal) + ' · Order செய்')
-        )
-      )
-    ) : null
-  );
+function placeOrder() {
+if (!addressId) { alert("Address தயார் ஆகல, ஒரு நிமிடம் காத்திருந்து try பண்ணுங்க"); return; }
+setPlacing(true);
+supabase.from("orders").insert({
+customer_id: session.user.id, restaurant_id: RESTAURANT_ID,
+delivery_address_id: addressId, subtotal: cartTotal, delivery_fee: deliveryFee, status: "placed",
+payment_status: paymentDone ? "paid" : "pending",
+razorpay_order_id: rzpOrderId, razorpay_payment_id: rzpPaymentId
+}).select().then(function(res) {
+if (res.error || !res.data || !res.data[0]) { alert("Order Error: " + (res.error ? res.error.message : "unknown")); setPlacing(false); return; }
+var newOrder = res.data[0];
+var items = Object.keys(cart).map(function(id) {
+var m = menu.filter(function(mm) { return mm.id === id; })[0];
+return { order_id: newOrder.id, menu_item_id: m.id, name_en: m.name_en, name_ta: m.name_ta, unit_price: m.price, quantity: cart[id] };
+});
+supabase.from("order_items").insert(items).then(function(ires) {
+setPlacing(false);
+if (ires.error) { alert("Order items error: " + ires.error.message); return; }
+setOrderId(newOrder.id);
+setOrderStatus("placed");
+setCart({});
+setPaymentDone(false);
+setRzpPaymentId(null);
+setRzpOrderId(null);
+setScreen('track');
+});
+});
+}
+
+var [trackRiderId, setTrackRiderId] = React.useState(null);
+React.useEffect(function() {
+if (!orderId) return;
+var channel = supabase.channel('order-' + orderId)
+.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'id=eq.' + orderId }, function(payload) {
+setOrderStatus(payload.new.status);
+if (payload.new.rider_id) setTrackRiderId(payload.new.rider_id);
+}).subscribe();
+supabase.from("orders").select("rider_id").eq("id", orderId).then(function(res) {
+if (res.data && res.data[0] && res.data[0].rider_id) setTrackRiderId(res.data[0].rider_id);
+});
+return function() { supabase.removeChannel(channel); };
+}, [orderId]);
+
+if (screen === 'track') {
+var stages = [
+{ key: 'placed', ta: 'ஆர்டர் பதிவு' },
+{ key: 'accepted', ta: 'ஏற்றுக்கொள்ளப்பட்டது' },
+{ key: 'preparing', ta: 'தயார் செய்யப்படுகிறது' },
+{ key: 'pickup', ta: 'எடுக்கப்பட்டது' },
+{ key: 'onway', ta: 'வழியில் உள்ளது' },
+{ key: 'delivered', ta: 'வழங்கப்பட்டது' }
+];
+var idx = stages.map(function(s){return s.key;}).indexOf(orderStatus);
+return e('div', { style: { padding: 16 } },
+e('p', { style: { fontWeight: 'bold', fontSize: 16 } }, 'ஆர்டர் #' + orderId + ' Tracking'),
+e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8', marginTop: 12 } },
+stages.map(function(s, i) {
+var done = i <= idx;
+return e('p', { key: s.key, style: { fontWeight: done ? 700 : 400, color: done ? '#1C1410' : '#C9BBA8', padding: '6px 0' } },
+(done ? '✅ ' : '⚪ ') + s.ta);
+})
+),
+(restaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: restaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
+e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16, background: '#1C1410', color: 'white', padding: 10, borderRadius: 12, border: 'none', width: '100%' } }, 'மெனுவுக்கு திரும்பு')
+);
+}
+
+return e('div', { style: { minHeight: '100vh', paddingBottom: 220 } },
+e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
+e('div', null,
+e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🥚 Egg-Pro'),
+e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, 'Only Egg Dishes')
+),
+e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋')
+),
+e('div', { style: { padding: '12px 16px 0' } },
+e('div', { style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 } },
+e('div', { style: { minWidth: 0, flex: 1 } },
+e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, '📍 Delivery Address'),
+e('p', { style: { fontSize: 12, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, addressText || 'இன்னும் set பண்ணல'),
+gpsErr ? e('p', { style: { fontSize: 10, color: '#C1442E', margin: 0 } }, gpsErr) : null
+),
+e('button', { onClick: captureLocation, disabled: gpsBusy,
+style: { fontSize: 11, background: '#1C1410', color: '#E8A33D', border: 'none', padding: '8px 10px', borderRadius: 10, whiteSpace: 'nowrap' } },
+gpsBusy ? '...' : '📍 Location')
+)
+),
+e('div', { style: { padding: 16 } },
+loading ? e('p', null, 'Loading menu...') :
+menu.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 24 } }, 'மெனு காலியா இருக்கு — Restaurant app-ல் items add பண்ணுங்க') :
+menu.map(function(m) {
+return e('div', { key: m.id, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+e('div', null,
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, m.name_ta),
+e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, m.name_en + ' · ' + money(m.price))
+),
+cart[m.id] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+e('button', { onClick: function(){ removeItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '−'),
+e('span', null, cart[m.id]),
+e('button', { onClick: function(){ addItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '+')
+) : e('button', { onClick: function(){ addItem(m.id); }, style: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D' } }, '+')
+);
+})
+),
+cartCount > 0 ? e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', padding: 16, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
+e('span', { style: { fontSize: 13, color: '#8A6D3B' } }, '📍 தூரம் (Distance)'),
+gpsDistanceKm !== null ? e('span', { style: { fontWeight: 600, fontSize: 13, color: '#5B7553' } }, distanceKm + ' km (GPS)') :
+e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+e('button', { onClick: function(){ setManualDistanceKm(Math.max(1, manualDistanceKm - 1)); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '−'),
+e('span', { style: { fontWeight: 600, fontSize: 13, minWidth: 60, textAlign: 'center' } }, distanceKm + ' km (est)'),
+e('button', { onClick: function(){ setManualDistanceKm(manualDistanceKm + 1); }, style: { width: 26, height: 26, borderRadius: 13, border: 'none', background: '#F3E9D8' } }, '+')
+)
+),
+e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 2, display: 'flex', justifyContent: 'space-between' } },
+e('span', null, 'உணவு மொத்தம்'), e('span', null, money(cartTotal))
+),
+e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
+e('span', null, 'டெலிவரி கட்டணம் (' + distanceKm + 'km × ₹10)'), e('span', null, money(deliveryFee))
+),
+e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } },
+e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
+),
+!paymentDone ? e('div', null,
+e('button', { onClick: startPayment, disabled: payBusy,
+style: { width: '100%', background: '#5B7553', color: 'white', padding: 12, borderRadius: 14, border: 'none', fontWeight: 600, marginBottom: 8 } },
+payBusy ? '⏳ Payment window திறக்குது...' : '💳 ' + money(grandTotal) + ' Pay பண்ணுங்க')
+) : e('div', null,
+e('p', { style: { fontSize: 12, color: '#5B7553', textAlign: 'center', marginBottom: 8, fontWeight: 600 } }, '✅ Payment வெற்றிகரமாக verify ஆனது'),
+e('button', { onClick: placeOrder, disabled: placing || !addressId || !addressLatLng,
+style: { width: '100%', background: (!addressId || !addressLatLng ? '#C9BBA8' : '#1C1410'), color: 'white', padding: 14, borderRadius: 16, border: 'none', fontWeight: 600 } },
+!addressLatLng ? '📍 மேலே Location set பண்ணுங்க' : placing ? 'Placing order...' : (cartCount + ' items · ' + money(grandTotal) + ' · Order செய்')
+)
+)
+) : null
+);
 }
 
 // ---------- Root ----------
 function App() {
-  var [session, setSession] = React.useState(null);
-  var [checked, setChecked] = React.useState(false);
-
-  React.useEffect(function() {
-    supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
-    supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
-  }, []);
-
-  if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
-  return session ? e(CustomerHome, { session: session }) : e(Login);
+var [session, setSession] = React.useState(null);
+var [checked, setChecked] = React.useState(false);
+React.useEffect(function() {
+supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
+supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
+}, []);
+if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+return session ? e(CustomerHome, { session: session }) : e(Login);
 }
-
 ReactDOM.createRoot(document.getElementById('root')).render(e(App));
 </script>
 </body>
