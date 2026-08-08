@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Egg-Pro — Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; }
+</style>
+</head>
+<body class="bg-[#FBF3E7]">
+<div id="root">Loading...</div>
+<script>
+var e = React.createElement;
+var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function money(n) { return "₹" + Number(n || 0).toFixed(2); }
+
+function Login(props) {
+var [email, setEmail] = React.useState("");
+var [password, setPassword] = React.useState("");
+var [err, setErr] = React.useState("");
+var [loading, setLoading] = React.useState(false);
+
+function handleLogin(ev) {
+ev.preventDefault();
+setLoading(true);
+setErr("");
+supabase.auth.signInWithPassword({ email: email, password: password }).then(function(res) {
+if (res.error) setErr(res.error.message);
+setLoading(false);
+});
+}
+
+return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
+e('form', { onSubmit: handleLogin, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
+e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#1C1410', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8A33D' } }, '🛡️'),
+e('div', null,
+e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Admin Panel'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Egg-Pro')
+)
+),
+e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
+style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+e('input', { type: 'password', placeholder: 'Password', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
+style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
+e('button', { type: 'submit', disabled: loading,
+style: { width: '100%', background: '#1C1410', color: 'white', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none' } },
+loading ? '...' : 'Login')
+)
+);
+}
+
+function DealerManager() {
+var [dealers, setDealers] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+var [showForm, setShowForm] = React.useState(false);
+var [editingId, setEditingId] = React.useState(null);
+var [name, setName] = React.useState("");
+var [phone, setPhone] = React.useState("");
+var [pincodes, setPincodes] = React.useState("");
+var [rate, setRate] = React.useState("10");
+var [accName, setAccName] = React.useState("");
+var [accNumber, setAccNumber] = React.useState("");
+var [ifsc, setIfsc] = React.useState("");
+var [upi, setUpi] = React.useState("");
+var [saving, setSaving] = React.useState(false);
+var [errMsg, setErrMsg] = React.useState("");
+
+function load() {
+setLoading(true);
+supabase.from("dealers").select("*").order("created_at", { ascending: false }).then(function(res) {
+if (res.error) setErrMsg(res.error.message); else setDealers(res.data || []);
+setLoading(false);
+});
+}
+React.useEffect(function() { load(); }, []);
+
+function resetForm() {
+setEditingId(null);
+setName(""); setPhone(""); setPincodes(""); setRate("10"); setAccName(""); setAccNumber(""); setIfsc(""); setUpi("");
+}
+
+function startEdit(d) {
+setEditingId(d.id);
+setName(d.name || "");
+setPhone(d.phone || "");
+setPincodes((d.area_pincodes || []).join(", "));
+setRate(String(d.commission_rate != null ? d.commission_rate : 10));
+setAccName(d.account_holder_name || "");
+setAccNumber(d.bank_account_number || "");
+setIfsc(d.ifsc_code || "");
+setUpi(d.upi_id || "");
+setShowForm(true);
+}
+
+function save() {
+if (!name || !pincodes) { alert("பெயர் மற்றும் Pincodes கட்டாயம் தேவை"); return; }
+setSaving(true);
+var pinArray = pincodes.split(",").map(function(p){ return p.trim(); }).filter(Boolean);
+var payload = {
+name: name, phone: phone, area_pincodes: pinArray, commission_rate: Number(rate) || 10,
+account_holder_name: accName, bank_account_number: accNumber, ifsc_code: ifsc, upi_id: upi
+};
+var op = editingId
+? supabase.from("dealers").update(payload).eq("id", editingId)
+: supabase.from("dealers").insert(payload);
+op.then(function(res) {
+setSaving(false);
+if (res.error) { alert("Error: " + res.error.message); return; }
+setShowForm(false);
+resetForm();
+load();
+});
+}
+
+function toggleActive(d) {
+supabase.from("dealers").update({ is_active: !d.is_active }).eq("id", d.id).then(function() { load(); });
+}
+
+return e('div', { style: { padding: 16 } },
+errMsg ? e('p', { style: { color: '#C1442E', padding: 12, background: '#FDEDEA', borderRadius: 12, marginBottom: 12, fontSize: 12 } },
+'⚠️ ' + errMsg + ' — dealers table இன்னும் SQL migration run ஆகலைன்னா இது வரும்.') : null,
+e('button', { onClick: function(){ if (showForm) { setShowForm(false); } else { resetForm(); setShowForm(true); } }, style: { background: '#1C1410', color: '#E8A33D', fontSize: 14, fontWeight: 600, padding: '10px 16px', borderRadius: 12, border: 'none', marginBottom: 12 } }, '+ புதிய Dealer சேர்'),
+showForm ? e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8', marginBottom: 12 } },
+e('input', { placeholder: 'Dealer பெயர்', value: name, onChange: function(ev){ setName(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { placeholder: 'Phone', value: phone, onChange: function(ev){ setPhone(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { placeholder: 'Pincodes (comma-ஆல் பிரிக்கவும், e.g. 627001,627002)', value: pincodes, onChange: function(ev){ setPincodes(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { type: 'number', placeholder: 'Commission %', value: rate, onChange: function(ev){ setRate(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: '4px 0' } }, 'வங்கி விவரங்கள் (payout-க்கு):'),
+e('input', { placeholder: 'Account Holder பெயர்', value: accName, onChange: function(ev){ setAccName(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { placeholder: 'Account Number', value: accNumber, onChange: function(ev){ setAccNumber(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { placeholder: 'IFSC Code', value: ifsc, onChange: function(ev){ setIfsc(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('input', { placeholder: 'UPI ID (optional)', value: upi, onChange: function(ev){ setUpi(ev.target.value); }, style: { width: '100%', marginBottom: 8, padding: 8, borderRadius: 8, border: '1px solid #EEE0C8', boxSizing: 'border-box' } }),
+e('button', { onClick: save, disabled: saving, style: { width: '100%', background: '#5B7553', color: 'white', fontWeight: 600, padding: 10, borderRadius: 12, border: 'none' } }, saving ? '...' : (editingId ? 'Update Dealer' : 'Save Dealer'))
+) : null,
+loading ? e('p', { style: { color: '#8A6D3B' } }, 'Loading...') :
+dealers.length === 0 ? e('p', { style: { textAlign: 'center', color: '#C9BBA8', padding: 24 } }, 'இன்னும் dealers சேர்க்கப்படவில்லை') :
+dealers.map(function(d) {
+return e('div', { key: d.id, style: { background: 'white', borderRadius: 16, padding: 14, border: '1px solid #EEE0C8', marginBottom: 8 } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+e('div', null,
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, d.name),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, d.phone || '-'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: '4px 0 0' } }, 'Areas: ' + (d.area_pincodes || []).join(', ')),
+e('p', { style: { fontSize: 11, color: '#5B7553', fontWeight: 600, margin: '2px 0 0' } }, d.commission_rate + '% commission')
+),
+e('button', { onClick: function(){ toggleActive(d); }, style: { fontSize: 10, fontWeight: 'bold', padding: '4px 8px', borderRadius: 20, border: 'none', background: d.is_active ? '#F0F5EC' : '#F3E9D8', color: d.is_active ? '#5B7553' : '#8A6D3B' } }, d.is_active ? 'Active' : 'Inactive')
+),
+e('button', { onClick: function(){ startEdit(d); }, style: { marginTop: 10, fontSize: 12, fontWeight: 600, color: '#1C1410', background: '#FFF6E8', border: 'none', padding: '6px 12px', borderRadius: 10 } }, '✏️ Edit')
+);
+})
+);
+}
+
+function Dashboard(props) {
+var [tab, setTab] = React.useState('orders');
+var [orders, setOrders] = React.useState([]);
+var [restaurants, setRestaurants] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+var [dbError, setDbError] = React.useState("");
+
+React.useEffect(function() {
+Promise.all([
+supabase.from("orders").select("*, restaurants(name), dealers(name)").order("placed_at", { ascending: false }).limit(50),
+supabase.from("restaurants").select("*")
+]).then(function(results) {
+if (results[0].error) setDbError(results[0].error.message);
+else setOrders(results[0].data || []);
+if (results[1].error) setDbError(results[1].error.message);
+else setRestaurants(results[1].data || []);
+setLoading(false);
+});
+}, []);
+
+var totalAdminCommission = orders.reduce(function(sum, o) { return sum + Number(o.admin_commission_amount || o.commission_amount || 0); }, 0);
+var totalDealerCommission = orders.reduce(function(sum, o) { return sum + Number(o.dealer_commission_amount || 0); }, 0);
+var todayStr = new Date().toDateString();
+var todayAdminCommission = orders.reduce(function(sum, o) {
+return sum + (o.placed_at && new Date(o.placed_at).toDateString() === todayStr ? Number(o.admin_commission_amount || o.commission_amount || 0) : 0);
+}, 0);
+
+return e('div', { style: { minHeight: '100vh', paddingBottom: 32 } },
+e('div', { style: { background: '#1C1410', color: 'white', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+e('div', null,
+e('p', { style: { fontWeight: 'bold', margin: 0 } }, 'Egg-Pro'),
+e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, 'Admin Dashboard')
+),
+e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋ Logout')
+),
+e('div', { style: { display: 'flex', gap: 8, padding: 16, paddingBottom: 0 } },
+e('button', { onClick: function(){ setTab('orders'); }, style: { flex: 1, padding: 10, borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 13,
+background: tab === 'orders' ? '#1C1410' : 'white', color: tab === 'orders' ? '#E8A33D' : '#8A6D3B' } }, 'Orders'),
+e('button', { onClick: function(){ setTab('dealers'); }, style: { flex: 1, padding: 10, borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 13,
+background: tab === 'dealers' ? '#1C1410' : 'white', color: tab === 'dealers' ? '#E8A33D' : '#8A6D3B' } }, 'Dealers')
+),
+tab === 'dealers' ? e(DealerManager) :
+e('div', { style: { padding: 16 } },
+loading ? e('p', { style: { color: '#8A6D3B' } }, 'Loading data...') :
+dbError ? e('p', { style: { color: '#C1442E' } }, 'Error: ' + dbError) :
+e('div', null,
+e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 } },
+e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8' } },
+e('p', { style: { fontSize: 20, fontWeight: 'bold', color: '#1C1410', margin: 0 } }, orders.length),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Total Orders')
+),
+e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8' } },
+e('p', { style: { fontSize: 20, fontWeight: 'bold', color: '#1C1410', margin: 0 } }, restaurants.length),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Restaurants')
+)
+),
+e('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } },
+e('div', { style: { background: '#1C1410', borderRadius: 16, padding: 16 } },
+e('p', { style: { fontSize: 11, color: '#C9BBA8', margin: 0 } }, '💰 Admin Commission (4.3%)'),
+e('p', { style: { fontSize: 22, fontWeight: 'bold', color: '#E8A33D', margin: '4px 0' } }, money(totalAdminCommission)),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'இன்று: ' + money(todayAdminCommission))
+),
+e('div', { style: { background: '#5B7553', borderRadius: 16, padding: 16 } },
+e('p', { style: { fontSize: 11, color: '#E4EEDC', margin: 0 } }, '🏍️ Dealer Commission (10%)'),
+e('p', { style: { fontSize: 22, fontWeight: 'bold', color: 'white', margin: '4px 0' } }, money(totalDealerCommission)),
+e('p', { style: { fontSize: 11, color: '#E4EEDC', margin: 0 } }, 'Payout-க்கு காத்திருக்கு')
+)
+),
+e('div', { style: { background: 'white', borderRadius: 16, border: '1px solid #EEE0C8', overflow: 'hidden' } },
+orders.length === 0 ?
+e('p', { style: { textAlign: 'center', color: '#C9BBA8', padding: 24 } }, 'ஆர்டர்கள் இல்லை') :
+orders.map(function(o) {
+return e('div', { key: o.id, style: { padding: '12px 16px', borderBottom: '1px solid #F3E9D8' } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+e('span', null, '#' + o.id + ' · ' + (o.restaurants ? o.restaurants.name : '')),
+e('p', { style: { fontWeight: 'bold', margin: 0, fontSize: 13 } }, money(o.total_amount))
+),
+e('div', { style: { display: 'flex', justifyContent: 'space-between', marginTop: 4, flexWrap: 'wrap' } },
+e('span', { style: { fontSize: 10, color: '#8A6D3B' } }, o.dealers ? ('Dealer: ' + o.dealers.name) : 'Dealer: -'),
+e('span', { style: { fontSize: 10, color: '#5B7553' } }, 'Admin: ' + money(o.admin_commission_amount || o.commission_amount) + ' · Dealer: ' + money(o.dealer_commission_amount) + ' · Restaurant: ' + money(o.restaurant_payout_amount) + ' · Rider: ' + money(o.rider_payout_amount))
+)
+);
+})
+)
+)
+)
+);
+}
+
+function App() {
+var [session, setSession] = React.useState(null);
+var [checked, setChecked] = React.useState(false);
+React.useEffect(function() {
+supabase.auth.getSession().then(function(res) {
+setSession(res.data.session);
+setChecked(true);
+});
+var sub = supabase.auth.onAuthStateChange(function(event, sess) {
+setSession(sess);
+});
+}, []);
+if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+return session ? e(Dashboard) : e(Login);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
