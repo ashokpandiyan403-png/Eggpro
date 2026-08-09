@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Egg-Pro — Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; background:#FBF3E7; }
+</style>
+</head>
+<body>
+<div id="root">Loading...</div>
+<script>
+var e = React.createElement;
+var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function money(n) { return "₹" + Number(n || 0).toFixed(2); }
+function fmtDate(s) { if(!s) return ""; var d = new Date(s); return d.toLocaleDateString('en-IN', {day:'2-digit',month:'short'}) + " " + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}); }
+
+var STATUS_LIST = ["placed","accepted","preparing","pickup","onway","delivered","cancelled"];
+var STATUS_TA = { placed:'பதிவு', accepted:'ஏற்றது', preparing:'தயார்', pickup:'எடுத்தது', onway:'வழியில்', delivered:'வழங்கியது', cancelled:'ரத்து' };
+
+function Login() {
+var [email, setEmail] = React.useState("");
+var [password, setPassword] = React.useState("");
+var [err, setErr] = React.useState("");
+var [loading, setLoading] = React.useState(false);
+
+function submit(ev) {
+ev.preventDefault();
+setLoading(true); setErr("");
+supabase.auth.signInWithPassword({ email: email, password: password }).then(function(res) {
+if (res.error) { setErr(res.error.message); setLoading(false); return; }
+supabase.from("profiles").select("role").eq("id", res.data.user.id).then(function(pres) {
+setLoading(false);
+if (!pres.data || !pres.data[0] || pres.data[0].role !== "admin") {
+setErr("இந்த account-க்கு Admin அனுமதி இல்லை");
+supabase.auth.signOut();
+}
+});
+});
+}
+
+return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
+e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
+e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#1C1410', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, '🛠️'),
+e('div', null,
+e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro Admin'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Login')
+)
+),
+e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
+style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+e('input', { type: 'password', placeholder: 'Password', required: true, value: password, onChange: function(ev){ setPassword(ev.target.value); },
+style: { width: '100%', marginBottom: 16, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
+err ? e('p', { style: { fontSize: 12, color: '#C1442E', marginBottom: 12 } }, err) : null,
+e('button', { type: 'submit', disabled: loading,
+style: { width: '100%', background: '#1C1410', color: '#E8A33D', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: 'none' } },
+loading ? '...' : 'Login')
+)
+);
+}
+
+function StatCard(props) {
+return e('div', { style: { background: 'white', borderRadius: 14, padding: 14, border: '1px solid #EEE0C8', flex: 1, minWidth: 130 } },
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: '0 0 4px' } }, props.label),
+e('p', { style: { fontSize: 20, fontWeight: 700, margin: 0, color: '#1C1410' } }, props.value)
+);
+}
+
+function Dashboard() {
+var [stats, setStats] = React.useState(null);
+var [recent, setRecent] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+
+React.useEffect(function() {
+supabase.from("orders").select("*").then(function(res) {
+var orders = res.data || [];
+var totalOrders = orders.length;
+var totalRevenue = orders.reduce(function(s,o){ return s + Number(o.subtotal||0) + Number(o.delivery_fee||0); }, 0);
+var adminEarn = orders.reduce(function(s,o){ return s + Number(o.admin_commission_amount||0); }, 0);
+var pending = orders.filter(function(o){ return o.status !== 'delivered' && o.status !== 'cancelled'; }).length;
+setStats({ totalOrders: totalOrders, totalRevenue: totalRevenue, adminEarn: adminEarn, pending: pending });
+var sorted = orders.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
+setRecent(sorted.slice(0, 8));
+setLoading(false);
+});
+}, []);
+
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+
+return e('div', { style: { padding: 16 } },
+e('div', { style: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 } },
+e(StatCard, { label: 'மொத்த Orders', value: stats.totalOrders }),
+e(StatCard, { label: 'மொத்த Revenue', value: money(stats.totalRevenue) }),
+e(StatCard, { label: 'Admin Commission', value: money(stats.adminEarn) }),
+e(StatCard, { label: 'Pending Orders', value: stats.pending })
+),
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: '16px 0 8px' } }, 'சமீபத்திய Orders'),
+recent.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Orders இல்லை') :
+recent.map(function(o) {
+return e('div', { key: o.id, style: { background: 'white', borderRadius: 12, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
+e('div', null,
+e('p', { style: { fontSize: 13, fontWeight: 600, margin: 0 } }, '#' + o.id.slice(0,8)),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, fmtDate(o.created_at))
+),
+e('div', { style: { textAlign: 'right' } },
+e('p', { style: { fontSize: 13, fontWeight: 600, margin: 0 } }, money(Number(o.subtotal||0)+Number(o.delivery_fee||0))),
+e('p', { style: { fontSize: 11, color: '#5B7553', margin: 0 } }, STATUS_TA[o.status] || o.status)
+)
+);
+})
+);
+}
+
+function OrdersTab() {
+var [orders, setOrders] = React.useState([]);
+var [riders, setRiders] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+var [filter, setFilter] = React.useState("all");
+
+function load() {
+supabase.from("orders").select("*").order("created_at", { ascending: false }).then(function(res) {
+setOrders(res.data || []);
+setLoading(false);
+});
+}
+React.useEffect(function() {
+load();
+supabase.from("riders").select("id, name, is_available").then(function(res) { setRiders(res.data || []); });
+var channel = supabase.channel('admin-orders')
+.on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, function() { load(); }).subscribe();
+return function() { supabase.removeChannel(channel); };
+}, []);
+
+function updateStatus(id, status) {
+supabase.from("orders").update({ status: status }).eq("id", id).then(function(res) {
+if (res.error) alert("Error: " + res.error.message);
+});
+}
+function assignRider(id, riderId) {
+supabase.from("orders").update({ rider_id: riderId || null }).eq("id", id).then(function(res) {
+if (res.error) alert("Error: " + res.error.message);
+});
+}
+
+var filtered = filter === "all" ? orders : orders.filter(function(o){ return o.status === filter; });
+
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+
+return e('div', { style: { padding: 16 } },
+e('div', { style: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12, paddingBottom: 4 } },
+['all'].concat(STATUS_LIST).map(function(s) {
+return e('button', { key: s, onClick: function(){ setFilter(s); },
+style: { flexShrink: 0, fontSize: 11, padding: '6px 10px', borderRadius: 10, border: 'none',
+background: filter === s ? '#1C1410' : '#FFF6E8', color: filter === s ? '#E8A33D' : '#8A6D3B' } },
+s === 'all' ? 'அனைத்தும்' : (STATUS_TA[s] || s));
+})
+),
+filtered.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Orders இல்லை') :
+filtered.map(function(o) {
+return e('div', { key: o.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
+e('div', null,
+e('p', { style: { fontSize: 13, fontWeight: 700, margin: 0 } }, '#' + o.id.slice(0,8)),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, fmtDate(o.created_at))
+),
+e('p', { style: { fontSize: 15, fontWeight: 700, margin: 0 } }, money(Number(o.subtotal||0)+Number(o.delivery_fee||0)))
+),
+e('div', { style: { fontSize: 11, color: '#8A6D3B', marginBottom: 8 } },
+'Payment: ' + (o.payment_status || '-') + ' · Commission: ' + money(o.commission_amount)
+),
+e('select', { value: o.status, onChange: function(ev){ updateStatus(o.id, ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 8 } },
+STATUS_LIST.map(function(s) { return e('option', { key: s, value: s }, STATUS_TA[s] || s); })
+),
+e('select', { value: o.rider_id || "", onChange: function(ev){ assignRider(o.id, ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('option', { value: "" }, 'Rider assign பண்ணுங்க'),
+riders.map(function(r) { return e('option', { key: r.id, value: r.id }, r.name || r.id.slice(0,8)); })
+)
+);
+})
+);
+}
+
+function RestaurantsTab() {
+var [list, setList] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+React.useEffect(function() {
+supabase.from("restaurants").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
+}, []);
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+return e('div', { style: { padding: 16 } },
+list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Restaurants இல்லை') :
+list.map(function(r) {
+return e('div', { key: r.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, r.name || r.name_ta || '(பெயர் இல்லை)'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, r.address || (r.latitude ? (r.latitude + ', ' + r.longitude) : 'Location இல்லை')),
+e('p', { style: { fontSize: 11, color: r.is_active === false ? '#C1442E' : '#5B7553', margin: '4px 0 0' } }, r.is_active === false ? '❌ Inactive' : '✅ Active')
+);
+})
+);
+}
+
+function RidersTab() {
+var [list, setList] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+React.useEffect(function() {
+supabase.from("riders").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
+}, []);
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+return e('div', { style: { padding: 16 } },
+list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Riders இல்லை') :
+list.map(function(r) {
+return e('div', { key: r.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
+e('div', null,
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, r.name || '(பெயர் இல்லை)'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, r.phone || '')
+),
+e('p', { style: { fontSize: 11, color: r.is_available ? '#5B7553' : '#C9BBA8', margin: 0 } }, r.is_available ? '🟢 Available' : '⚪ Offline')
+);
+})
+);
+}
+
+function DealersTab() {
+var [list, setList] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+React.useEffect(function() {
+supabase.from("dealers").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
+}, []);
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+return e('div', { style: { padding: 16 } },
+list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Dealers இல்லை') :
+list.map(function(d) {
+return e('div', { key: d.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, d.name || '(பெயர் இல்லை)'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Commission: ' + d.commission_rate + '%'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Pincodes: ' + ((d.area_pincodes||[]).join(', ') || '-')),
+e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive')
+);
+})
+);
+}
+
+function AdminHome(props) {
+var [tab, setTab] = React.useState('dashboard');
+var tabs = [
+{ key: 'dashboard', label: '📊 Dashboard' },
+{ key: 'orders', label: '📦 Orders' },
+{ key: 'restaurants', label: '🏪 Restaurants' },
+{ key: 'riders', label: '🏍️ Riders' },
+{ key: 'dealers', label: '🤝 Dealers' }
+];
+return e('div', { style: { minHeight: '100vh', paddingBottom: 70 } },
+e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
+e('div', null,
+e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🛠️ Egg-Pro Admin'),
+e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, 'கண்காணிப்பு')
+),
+e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋')
+),
+tab === 'dashboard' ? e(Dashboard) :
+tab === 'orders' ? e(OrdersTab) :
+tab === 'restaurants' ? e(RestaurantsTab) :
+tab === 'riders' ? e(RidersTab) :
+e(DealersTab),
+e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', display: 'flex' } },
+tabs.map(function(t) {
+return e('button', { key: t.key, onClick: function(){ setTab(t.key); },
+style: { flex: 1, padding: '10px 4px', border: 'none', background: 'none', fontSize: 10,
+color: tab === t.key ? '#1C1410' : '#C9BBA8', fontWeight: tab === t.key ? 700 : 400 } }, t.label);
+})
+)
+);
+}
+
+function App() {
+var [session, setSession] = React.useState(null);
+var [checked, setChecked] = React.useState(false);
+React.useEffect(function() {
+supabase.auth.getSession().then(function(res) { setSession(res.data.session); setChecked(true); });
+supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
+}, []);
+if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
+return session ? e(AdminHome, { session: session }) : e(Login);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+</script>
+</body>
+</html>
