@@ -157,7 +157,8 @@ var [placing, setPlacing] = React.useState(false);
 function captureLocation() {
 if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
 setGpsBusy(true); setGpsErr("");
-navigator.geolocation.getCurrentPosition(function(pos) {
+
+function onSuccess(pos) {
 var lat = pos.coords.latitude, lng = pos.coords.longitude;
 fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lng)
 .then(function(r) { return r.json(); })
@@ -182,7 +183,28 @@ setAddressPincode(pin);
 setGpsBusy(false); setGpsErr("Address தேட முடியல, ஆனா location கிடைச்சது");
 setAddressLatLng({ lat: lat, lng: lng });
 });
-}, function(err) { setGpsBusy(false); setGpsErr("Location அனுமதி கொடுங்க: " + err.message); }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function onError(err) {
+if (err.code === 3) {
+navigator.geolocation.getCurrentPosition(onSuccess, function(err2) {
+setGpsBusy(false);
+setGpsErr(describeError(err2));
+}, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
+return;
+}
+setGpsBusy(false);
+setGpsErr(describeError(err));
+}
+
+function describeError(err) {
+if (err.code === 1) return "Location அனுமதி கொடுங்க (browser settings-ல் Allow பண்ணுங்க)";
+if (err.code === 2) return "Location கிடைக்கல் — GPS/Location service on பண்ணுங்க";
+if (err.code === 3) return "Location எடுக்க நேரம் ஆகுது — திறந்த வெளியில் மறுபடி try பண்ணுங்க";
+return "Location error: " + err.message;
+}
+
+navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
 React.useEffect(function() {
