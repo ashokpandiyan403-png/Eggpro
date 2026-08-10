@@ -16,6 +16,31 @@ body { font-family: 'Poppins', 'Noto Sans Tamil', sans-serif; margin: 0; backgro
 <body>
 <div id="root">Loading...</div>
 <script>
+(function() {
+var missing = [];
+if (typeof React === 'undefined') missing.push('React library');
+if (typeof ReactDOM === 'undefined') missing.push('ReactDOM library');
+if (typeof window.supabase === 'undefined') missing.push('Supabase library');
+if (missing.length > 0) {
+document.getElementById('root').innerHTML =
+'<div style="padding:24px;font-family:sans-serif;">' +
+'<p style="font-weight:bold;color:#C1442E;">⚠️ Load ஆகல: ' + missing.join(', ') + '</p>' +
+'<p style="font-size:13px;color:#666;">Internet connection சரி பாருங்க, அல்லது வேற browser/network-ல் try பண்ணுங்க. (CDN script block ஆகி இருக்கலாம்)</p>' +
+'<button onclick="location.reload()" style="margin-top:12px;padding:10px 16px;background:#1C1410;color:#E8A33D;border:none;border-radius:8px;">🔄 மறுபடி Try பண்ணுங்க</button>' +
+'</div>';
+throw new Error('Missing dependencies: ' + missing.join(', '));
+}
+})();
+window.addEventListener('error', function(ev) {
+var rootEl = document.getElementById('root');
+if (rootEl && rootEl.innerHTML.indexOf('Loading') !== -1) {
+rootEl.innerHTML = '<div style="padding:24px;font-family:sans-serif;">' +
+'<p style="font-weight:bold;color:#C1442E;">⚠️ Error: ' + (ev.message || 'Unknown error') + '</p>' +
+'<p style="font-size:12px;color:#666;">Line: ' + (ev.lineno || '-') + '</p>' +
+'<button onclick="location.reload()" style="margin-top:12px;padding:10px 16px;background:#1C1410;color:#E8A33D;border:none;border-radius:8px;">🔄 மறுபடி Try பண்ணுங்க</button>' +
+'</div>';
+}
+});
 var e = React.createElement;
 var SUPABASE_URL = "https://ikcmtuoldgrfzptkszyb.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_2b9pYw5utOjohoQbZ_RIOQ__nzh67OR";
