@@ -134,7 +134,7 @@ recent.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', p
 recent.map(function(o) {
 return e('div', { key: o.id, style: { background: 'white', borderRadius: 12, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
 e('div', null,
-e('p', { style: { fontSize: 13, fontWeight: 600, margin: 0 } }, '#' + o.id.slice(0,8)),
+e('p', { style: { fontSize: 13, fontWeight: 600, margin: 0 } }, '#' + String(o.id||'').slice(0,8)),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, fmtDate(o.created_at))
 ),
 e('div', { style: { textAlign: 'right' } },
@@ -195,7 +195,7 @@ filtered.map(function(o) {
 return e('div', { key: o.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
 e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
 e('div', null,
-e('p', { style: { fontSize: 13, fontWeight: 700, margin: 0 } }, '#' + o.id.slice(0,8)),
+e('p', { style: { fontSize: 13, fontWeight: 700, margin: 0 } }, '#' + String(o.id||'').slice(0,8)),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, fmtDate(o.created_at))
 ),
 e('p', { style: { fontSize: 15, fontWeight: 700, margin: 0 } }, money(Number(o.subtotal||0)+Number(o.delivery_fee||0)))
@@ -210,7 +210,7 @@ STATUS_LIST.map(function(s) { return e('option', { key: s, value: s }, STATUS_TA
 e('select', { value: o.rider_id || "", onChange: function(ev){ assignRider(o.id, ev.target.value); },
 style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
 e('option', { value: "" }, 'Rider assign பண்ணுங்க'),
-riders.map(function(r) { return e('option', { key: r.id, value: r.id }, r.name || r.id.slice(0,8)); })
+riders.map(function(r) { return e('option', { key: r.id, value: r.id }, r.name || String(r.id||'').slice(0,8)); })
 )
 );
 })
@@ -319,7 +319,24 @@ supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
 if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
 return session ? e(AdminHome, { session: session }) : e(Login);
 }
-ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+
+class ErrorBoundary extends React.Component {
+constructor(props) { super(props); this.state = { error: null }; }
+static getDerivedStateFromError(error) { return { error: error }; }
+componentDidCatch(error, info) { console.error("Admin app crash:", error, info); }
+render() {
+if (this.state.error) {
+return e('div', { style: { padding: 24, fontFamily: 'sans-serif' } },
+e('p', { style: { fontWeight: 'bold', color: '#C1442E' } }, '⚠️ App Error:'),
+e('p', { style: { fontSize: 13, color: '#666', wordBreak: 'break-word' } }, String(this.state.error && this.state.error.message || this.state.error)),
+e('button', { onClick: function(){ location.reload(); }, style: { marginTop: 12, padding: '10px 16px', background: '#1C1410', color: '#E8A33D', border: 'none', borderRadius: 8 } }, '🔄 மறுபடி Try பண்ணுங்க')
+);
+}
+return this.props.children;
+}
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(ErrorBoundary, null, e(App)));
 </script>
 </body>
 </html>
