@@ -277,6 +277,102 @@ e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', marg
 );
 }
 
+function PincodesTab() {
+var [list, setList] = React.useState([]);
+var [dealers, setDealers] = React.useState([]);
+var [loading, setLoading] = React.useState(true);
+var [search, setSearch] = React.useState("");
+var [filter, setFilter] = React.useState("all");
+var [page, setPage] = React.useState(0);
+var PAGE_SIZE = 40;
+
+function load() {
+setLoading(true);
+supabase.from("pincodes").select("*").order("pincode").then(function(res) {
+setList(res.data || []);
+setLoading(false);
+});
+}
+
+React.useEffect(function() {
+load();
+supabase.from("dealers").select("id,name,is_active").then(function(res) { setDealers(res.data || []); });
+}, []);
+
+function assignDealer(pincodeRowId, dealerId) {
+var newVal = dealerId || null;
+supabase.from("pincodes").update({ dealer_id: newVal, is_connected: !!newVal }).eq("id", pincodeRowId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) {
+return prev.map(function(p) { return p.id === pincodeRowId ? Object.assign({}, p, { dealer_id: newVal, is_connected: !!newVal }) : p; });
+});
+});
+}
+
+var filtered = list.filter(function(p) {
+if (filter === 'connected' && !p.is_connected) return false;
+if (filter === 'not_connected' && p.is_connected) return false;
+if (search) {
+var s = search.toLowerCase();
+var matchP = (p.pincode || '').indexOf(search) !== -1;
+var matchD = (p.district || '').toLowerCase().indexOf(s) !== -1;
+var matchA = (p.area_name || '').toLowerCase().indexOf(s) !== -1;
+if (!matchP && !matchD && !matchA) return false;
+}
+return true;
+});
+
+var totalConnected = list.filter(function(p){ return p.is_connected; }).length;
+var totalNotConnected = list.length - totalConnected;
+var pageCount = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+var pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+
+return e('div', { style: { padding: 16 } },
+e('div', { style: { display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 } },
+e(StatCard, { label: 'மொத்த Pincodes', value: list.length }),
+e(StatCard, { label: '✅ Connected', value: totalConnected }),
+e(StatCard, { label: '⚪ Not Connected', value: totalNotConnected })
+),
+e('input', { type: 'text', placeholder: '🔍 Pincode / District / Area தேடுங்க', value: search,
+onChange: function(ev){ setSearch(ev.target.value); setPage(0); },
+style: { width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' } }),
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 12 } },
+['all','connected','not_connected'].map(function(f) {
+var labels = { all: 'எல்லாம்', connected: '✅ Connected', not_connected: '⚪ Not Connected' };
+return e('button', { key: f, onClick: function(){ setFilter(f); setPage(0); },
+style: { flex: 1, padding: '8px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
+background: filter === f ? '#1C1410' : 'white', color: filter === f ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, labels[f]);
+})
+),
+filtered.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Pincodes இல்லை') :
+pageItems.map(function(p) {
+return e('div', { key: p.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
+e('div', null,
+e('p', { style: { fontWeight: 700, fontSize: 15, margin: 0 } }, p.pincode),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, (p.area_name || '') + (p.district ? (' · ' + p.district) : ''))
+),
+e('p', { style: { fontSize: 11, fontWeight: 600, color: p.is_connected ? '#5B7553' : '#C1442E', margin: 0 } }, p.is_connected ? '✅ Connected' : '⚪ Not Connected')
+),
+e('select', { value: p.dealer_id || "", onChange: function(ev){ assignDealer(p.id, ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
+dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name + (d.is_active === false ? ' (inactive)' : '')); })
+)
+);
+}),
+filtered.length > PAGE_SIZE ? e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 } },
+e('button', { onClick: function(){ setPage(Math.max(0, page - 1)); }, disabled: page === 0,
+style: { padding: '8px 14px', borderRadius: 10, border: '1px solid #EEE0C8', background: 'white', fontSize: 12 } }, '⬅ முந்தையது'),
+e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, 'Page ' + (page+1) + ' / ' + pageCount),
+e('button', { onClick: function(){ setPage(Math.min(pageCount - 1, page + 1)); }, disabled: page >= pageCount - 1,
+style: { padding: '8px 14px', borderRadius: 10, border: '1px solid #EEE0C8', background: 'white', fontSize: 12 } }, 'அடுத்தது ➡')
+) : null
+);
+}
+
 function AdminHome(props) {
 var [tab, setTab] = React.useState('dashboard');
 var tabs = [
@@ -284,7 +380,8 @@ var tabs = [
 { key: 'orders', label: '📦 Orders' },
 { key: 'restaurants', label: '🏪 Restaurants' },
 { key: 'riders', label: '🏍️ Riders' },
-{ key: 'dealers', label: '🤝 Dealers' }
+{ key: 'dealers', label: '🤝 Dealers' },
+{ key: 'pincodes', label: '📍 Pincodes' }
 ];
 return e('div', { style: { minHeight: '100vh', paddingBottom: 70 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
@@ -298,7 +395,8 @@ tab === 'dashboard' ? e(Dashboard) :
 tab === 'orders' ? e(OrdersTab) :
 tab === 'restaurants' ? e(RestaurantsTab) :
 tab === 'riders' ? e(RidersTab) :
-e(DealersTab),
+tab === 'dealers' ? e(DealersTab) :
+e(PincodesTab),
 e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', display: 'flex' } },
 tabs.map(function(t) {
 return e('button', { key: t.key, onClick: function(){ setTab(t.key); },
