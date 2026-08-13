@@ -419,6 +419,22 @@ return prev.map(function(p) { return p.id === pincodeRowId ? Object.assign({}, p
 });
 }
 
+var [showAdd, setShowAdd] = React.useState(false);
+var [newPincode, setNewPincode] = React.useState("");
+var [newDistrict, setNewDistrict] = React.useState("");
+var [newArea, setNewArea] = React.useState("");
+var [addBusy, setAddBusy] = React.useState(false);
+function addPincode() {
+if (!/^[0-9]{6}$/.test(newPincode.trim())) { alert("6 digit pincode சரியா போடுங்க"); return; }
+setAddBusy(true);
+supabase.from("pincodes").insert({ pincode: newPincode.trim(), district: newDistrict.trim() || null, area_name: newArea.trim() || null, state: 'Tamil Nadu' }).select().then(function(res) {
+setAddBusy(false);
+if (res.error) { alert("Error: " + res.error.message + (res.error.message.indexOf('duplicate') !== -1 ? ' (இந்த pincode ஏற்கனவே இருக்கு)' : '')); return; }
+if (res.data && res.data[0]) setList(function(prev) { return [res.data[0]].concat(prev); });
+setNewPincode(""); setNewDistrict(""); setNewArea(""); setShowAdd(false);
+});
+}
+
 var filtered = list.filter(function(p) {
 if (filter === 'connected' && !p.is_connected) return false;
 if (filter === 'not_connected' && p.is_connected) return false;
@@ -445,6 +461,22 @@ e(StatCard, { label: 'மொத்த Pincodes', value: list.length }),
 e(StatCard, { label: '✅ Connected', value: totalConnected }),
 e(StatCard, { label: '⚪ Not Connected', value: totalNotConnected })
 ),
+e('button', { onClick: function(){ setShowAdd(!showAdd); },
+style: { width: '100%', padding: 10, borderRadius: 12, border: '1px dashed #E8A33D', background: showAdd ? '#FFF6E8' : 'white', color: '#8A6D3B', fontSize: 12, fontWeight: 600, marginBottom: 10 } },
+showAdd ? '✕ மூடு' : '➕ காணாத Pincode Add பண்ணுங்க'),
+showAdd ? e('div', { style: { background: '#FFF6E8', borderRadius: 12, padding: 12, marginBottom: 12 } },
+e('input', { type: 'text', placeholder: 'Pincode (6 digit)', value: newPincode, maxLength: 6,
+onChange: function(ev){ setNewPincode(ev.target.value.replace(/[^0-9]/g, '')); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' } }),
+e('input', { type: 'text', placeholder: 'District', value: newDistrict,
+onChange: function(ev){ setNewDistrict(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 8, boxSizing: 'border-box' } }),
+e('input', { type: 'text', placeholder: 'Area/Taluk Name', value: newArea,
+onChange: function(ev){ setNewArea(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 10, boxSizing: 'border-box' } }),
+e('button', { onClick: addPincode, disabled: addBusy,
+style: { width: '100%', padding: 10, borderRadius: 10, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700, fontSize: 12 } }, addBusy ? 'Adding...' : '✅ Add பண்ணுங்க')
+) : null,
 e('input', { type: 'text', placeholder: '🔍 Pincode / District / Area தேடுங்க', value: search,
 onChange: function(ev){ setSearch(ev.target.value); setPage(0); },
 style: { width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' } }),
