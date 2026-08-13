@@ -219,10 +219,18 @@ riders.map(function(r) { return e('option', { key: r.id, value: r.id }, r.name |
 
 function RestaurantsTab() {
 var [list, setList] = React.useState([]);
+var [dealers, setDealers] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 React.useEffect(function() {
 supabase.from("restaurants").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
+supabase.from("dealers").select("id,name").then(function(res) { setDealers(res.data || []); });
 }, []);
+function assignDealer(restId, dealerId) {
+supabase.from("restaurants").update({ dealer_id: dealerId || null }).eq("id", restId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { dealer_id: dealerId || null }) : r; }); });
+});
+}
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Restaurants இல்லை') :
@@ -230,7 +238,12 @@ list.map(function(r) {
 return e('div', { key: r.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, r.name || r.name_ta || '(பெயர் இல்லை)'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, r.address || (r.latitude ? (r.latitude + ', ' + r.longitude) : 'Location இல்லை')),
-e('p', { style: { fontSize: 11, color: r.is_active === false ? '#C1442E' : '#5B7553', margin: '4px 0 0' } }, r.is_active === false ? '❌ Inactive' : '✅ Active')
+e('p', { style: { fontSize: 11, color: r.is_active === false ? '#C1442E' : '#5B7553', margin: '4px 0 0' } }, r.is_active === false ? '❌ Inactive' : '✅ Active'),
+e('select', { value: r.dealer_id || "", onChange: function(ev){ assignDealer(r.id, ev.target.value); },
+style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
+dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name); })
+)
 );
 })
 );
@@ -288,7 +301,7 @@ var PAGE_SIZE = 40;
 
 function load() {
 setLoading(true);
-supabase.from("pincodes").select("*").order("pincode").then(function(res) {
+supabase.from("pincodes").select("*").order("pincode").range(0, 4999).then(function(res) {
 setList(res.data || []);
 setLoading(false);
 });
@@ -313,8 +326,8 @@ var filtered = list.filter(function(p) {
 if (filter === 'connected' && !p.is_connected) return false;
 if (filter === 'not_connected' && p.is_connected) return false;
 if (search) {
-var s = search.toLowerCase();
-var matchP = (p.pincode || '').indexOf(search) !== -1;
+var s = search.trim().toLowerCase();
+var matchP = (p.pincode || '').toString().indexOf(search.trim()) !== -1;
 var matchD = (p.district || '').toLowerCase().indexOf(s) !== -1;
 var matchA = (p.area_name || '').toLowerCase().indexOf(s) !== -1;
 if (!matchP && !matchD && !matchA) return false;
@@ -373,6 +386,156 @@ style: { padding: '8px 14px', borderRadius: 10, border: '1px solid #EEE0C8', bac
 );
 }
 
+function PayoutsTab() {
+var [payouts, setPayouts] = React.useState([]);
+var [names, setNames] = React.useState({ restaurant: {}, rider: {}, dealer: {} });
+var [adminRevenue, setAdminRevenue] = React.useState(0);
+var [loading, setLoading] = React.useState(true);
+var [filter, setFilter] = React.useState('pending');
+var [openType, setOpenType] = React.useState(null);
+
+function load() {
+setLoading(true);
+Promise.all([
+supabase.from("payouts").select("*").order("created_at", { ascending: false }),
+supabase.from("restaurants").select("id,name,name_ta"),
+supabase.from("riders").select("id,name"),
+supabase.from("dealers").select("id,name"),
+supabase.from("orders").select("admin_commission_amount")
+]).then(function(results) {
+var pRes = results[0], rRes = results[1], riderRes = results[2], dRes = results[3], oRes = results[4];
+setPayouts(pRes.data || []);
+var nm = { restaurant: {}, rider: {}, dealer: {} };
+(rRes.data || []).forEach(function(r) { nm.restaurant[r.id] = r.name_ta || r.name; });
+(riderRes.data || []).forEach(function(r) { nm.rider[r.id] = r.name; });
+(dRes.data || []).forEach(function(d) { nm.dealer[d.id] = d.name; });
+setNames(nm);
+var totalAdmin = (oRes.data || []).reduce(function(s, o) { return s + Number(o.admin_commission_amount || 0); }, 0);
+setAdminRevenue(totalAdmin);
+setLoading(false);
+});
+}
+React.useEffect(load, []);
+
+function nameFor(type, id) { return (names[type] && names[type][id]) || ('(#' + String(id||'').slice(0,6) + ')'); }
+
+function markGroupPaid(type, id) {
+if (!confirm('இந்த amount பணமா அனுப்பியாச்சான்னு confirm பண்ணுறீங்களா?')) return;
+supabase.from("payouts").update({ status: 'paid', paid_at: new Date().toISOString() })
+.eq("recipient_type", type).eq("recipient_id", id).eq("status", "pending").then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+load();
+});
+}
+
+var filtered = payouts.filter(function(p) { return filter === 'all' || p.status === filter; });
+var byType = { dealer: {}, restaurant: {}, rider: {} };
+filtered.forEach(function(p) {
+var t = p.recipient_type;
+if (!byType[t]) byType[t] = {};
+if (!byType[t][p.recipient_id]) byType[t][p.recipient_id] = { total: 0, count: 0 };
+byType[t][p.recipient_id].total += Number(p.amount);
+byType[t][p.recipient_id].count += 1;
+});
+
+var typeMeta = [
+{ key: 'dealer', label: '🤝 Dealers', color: '#5B7553' },
+{ key: 'restaurant', label: '🏪 Restaurants', color: '#C1442E' },
+{ key: 'rider', label: '🏍️ Riders', color: '#8A6D3B' }
+];
+
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+
+return e('div', { style: { padding: 16 } },
+e('div', { style: { background: '#1C1410', borderRadius: 16, padding: 14, marginBottom: 12 } },
+e('p', { style: { color: '#C9BBA8', fontSize: 12, margin: 0 } }, '💼 Admin மொத்த வருமானம் (commission)'),
+e('p', { style: { color: '#E8A33D', fontSize: 20, fontWeight: 700, margin: '4px 0 0' } }, money(adminRevenue))
+),
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 14 } },
+['pending','paid','all'].map(function(f) {
+var labels = { pending: '⏳ Pending', paid: '✅ Paid', all: 'எல்லாம்' };
+return e('button', { key: f, onClick: function(){ setFilter(f); },
+style: { flex: 1, padding: '8px 4px', fontSize: 12, borderRadius: 10, border: '1px solid #EEE0C8',
+background: filter === f ? '#1C1410' : 'white', color: filter === f ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, labels[f]);
+})
+),
+typeMeta.map(function(tm) {
+var entries = Object.keys(byType[tm.key] || {}).map(function(id) {
+return Object.assign({ id: id }, byType[tm.key][id]);
+}).sort(function(a,b){ return b.total - a.total; });
+var typeTotal = entries.reduce(function(s,x){ return s + x.total; }, 0);
+var isOpen = openType === tm.key;
+return e('div', { key: tm.key, style: { marginBottom: 10, background: 'white', borderRadius: 14, border: '1px solid #EEE0C8', overflow: 'hidden' } },
+e('div', { onClick: function(){ setOpenType(isOpen ? null : tm.key); },
+style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 14, cursor: 'pointer' } },
+e('div', null,
+e('p', { style: { fontWeight: 700, fontSize: 14, margin: 0 } }, tm.label),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, entries.length + ' பேர்')
+),
+e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+e('p', { style: { fontWeight: 700, fontSize: 15, margin: 0, color: tm.color } }, money(typeTotal)),
+e('span', { style: { fontSize: 12, color: '#8A6D3B' } }, isOpen ? '▲' : '▼')
+)
+),
+isOpen ? e('div', { style: { padding: '0 14px 14px' } },
+entries.length === 0 ? e('p', { style: { color: '#C9BBA8', fontSize: 12, textAlign: 'center', padding: 10 } }, 'யாரும் இல்லை') :
+entries.map(function(en) {
+return e('div', { key: en.id, style: { borderTop: '1px solid #F3E9D8', paddingTop: 10, marginTop: 10 } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+e('div', null,
+e('p', { style: { fontWeight: 600, fontSize: 13, margin: 0 } }, nameFor(tm.key, en.id)),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, en.count + ' orders')
+),
+e('p', { style: { fontWeight: 700, fontSize: 14, margin: 0 } }, money(en.total))
+),
+filter === 'pending' ? e('button', { onClick: function(){ markGroupPaid(tm.key, en.id); },
+style: { width: '100%', marginTop: 6, padding: 7, borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontSize: 11, fontWeight: 600 } }, '✅ Paid ஆனது Mark பண்ணுங்க') : null
+);
+})
+) : null
+);
+})
+);
+}
+
+function SettingsTab() {
+var [gstin, setGstin] = React.useState("");
+var [gstRate, setGstRate] = React.useState(5);
+var [loading, setLoading] = React.useState(true);
+var [saving, setSaving] = React.useState(false);
+React.useEffect(function() {
+supabase.from("app_settings").select("*").eq("id", 1).maybeSingle().then(function(res) {
+if (res.data) { setGstin(res.data.gstin || ""); setGstRate(res.data.gst_rate != null ? res.data.gst_rate : 5); }
+setLoading(false);
+});
+}, []);
+function save() {
+setSaving(true);
+supabase.from("app_settings").upsert({ id: 1, gstin: gstin || null, gst_rate: Number(gstRate) || 0, updated_at: new Date().toISOString() }).then(function(res) {
+setSaving(false);
+if (res.error) { alert("Error: " + res.error.message); return; }
+alert("Settings save ஆயிடுச்சு!");
+});
+}
+if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
+return e('div', { style: { padding: 16 } },
+e('div', { style: { background: 'white', borderRadius: 16, padding: 16, border: '1px solid #EEE0C8' } },
+e('p', { style: { fontWeight: 700, fontSize: 15, marginBottom: 12 } }, '🧾 GST Settings'),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Company GSTIN'),
+e('input', { type: 'text', value: gstin, onChange: function(ev){ setGstin(ev.target.value.toUpperCase()); },
+placeholder: 'உதா: 33ABCDE1234F1Z5',
+style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 14, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'GST Rate (%)'),
+e('input', { type: 'number', value: gstRate, onChange: function(ev){ setGstRate(ev.target.value); },
+step: '0.1',
+style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 14, boxSizing: 'border-box' } }),
+e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'இந்த % ஒவ்வொரு Customer Order Total-லும் (Subtotal + Delivery மேல) சேர்க்கப்படும்.'),
+e('button', { onClick: save, disabled: saving,
+style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700 } }, saving ? 'Saving...' : '💾 Save Settings')
+)
+);
+}
+
 function AdminHome(props) {
 var [tab, setTab] = React.useState('dashboard');
 var tabs = [
@@ -381,7 +544,9 @@ var tabs = [
 { key: 'restaurants', label: '🏪 Restaurants' },
 { key: 'riders', label: '🏍️ Riders' },
 { key: 'dealers', label: '🤝 Dealers' },
-{ key: 'pincodes', label: '📍 Pincodes' }
+{ key: 'pincodes', label: '📍 Pincodes' },
+{ key: 'payouts', label: '💰 Payouts' },
+{ key: 'settings', label: '⚙️ Settings' }
 ];
 return e('div', { style: { minHeight: '100vh', paddingBottom: 70 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
@@ -396,7 +561,9 @@ tab === 'orders' ? e(OrdersTab) :
 tab === 'restaurants' ? e(RestaurantsTab) :
 tab === 'riders' ? e(RidersTab) :
 tab === 'dealers' ? e(DealersTab) :
-e(PincodesTab),
+tab === 'pincodes' ? e(PincodesTab) :
+tab === 'payouts' ? e(PayoutsTab) :
+e(SettingsTab),
 e('div', { style: { position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #EEE0C8', display: 'flex' } },
 tabs.map(function(t) {
 return e('button', { key: t.key, onClick: function(){ setTab(t.key); },
