@@ -231,6 +231,12 @@ if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { dealer_id: dealerId || null }) : r; }); });
 });
 }
+function updateFssai(restId, fssai) {
+supabase.from("restaurants").update({ fssai_number: fssai || null }).eq("id", restId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { fssai_number: fssai }) : r; }); });
+});
+}
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Restaurants இல்லை') :
@@ -239,6 +245,10 @@ return e('div', { key: r.id, style: { background: 'white', borderRadius: 14, pad
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, r.name || r.name_ta || '(பெயர் இல்லை)'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, r.address || (r.latitude ? (r.latitude + ', ' + r.longitude) : 'Location இல்லை')),
 e('p', { style: { fontSize: 11, color: r.is_active === false ? '#C1442E' : '#5B7553', margin: '4px 0 0' } }, r.is_active === false ? '❌ Inactive' : '✅ Active'),
+e('p', { style: { fontSize: 10, fontWeight: 600, margin: '4px 0 0', color: r.fssai_number ? '#5B7553' : '#C1442E' } }, r.fssai_number ? ('✅ FSSAI: ' + r.fssai_number) : '⚠️ FSSAI verify ஆகல'),
+e('input', { type: 'text', defaultValue: r.fssai_number || "", placeholder: '🧾 FSSAI Number போடுங்க',
+onBlur: function(ev){ if (ev.target.value !== (r.fssai_number || "")) updateFssai(r.id, ev.target.value.trim()); },
+style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
 e('select', { value: r.dealer_id || "", onChange: function(ev){ assignDealer(r.id, ev.target.value); },
 style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
 e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
@@ -251,15 +261,29 @@ dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name)
 
 function RidersTab() {
 var [list, setList] = React.useState([]);
+var [dealers, setDealers] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 function load() {
 supabase.from("riders").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
+supabase.from("dealers").select("id,name").then(function(res) { setDealers(res.data || []); });
 }
 React.useEffect(load, []);
 function updatePincode(id, pincode) {
 supabase.from("riders").update({ service_pincode: pincode || null }).eq("id", id).then(function(res) {
 if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(r) { return r.id === id ? Object.assign({}, r, { service_pincode: pincode }) : r; }); });
+});
+}
+function updateAddress(id, address) {
+supabase.from("riders").update({ address: address || null }).eq("id", id).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === id ? Object.assign({}, r, { address: address }) : r; }); });
+});
+}
+function assignDealer(id, dealerId) {
+supabase.from("riders").update({ dealer_id: dealerId || null }).eq("id", id).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === id ? Object.assign({}, r, { dealer_id: dealerId || null }) : r; }); });
 });
 }
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
@@ -277,6 +301,14 @@ e('p', { style: { fontSize: 11, color: r.is_available ? '#5B7553' : '#C9BBA8', m
 e('input', { type: 'text', defaultValue: r.service_pincode || "", placeholder: '📍 Rider-ன் Pincode போடுங்க',
 onBlur: function(ev){ if (ev.target.value !== (r.service_pincode || "")) updatePincode(r.id, ev.target.value.trim()); },
 style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
+e('input', { type: 'text', defaultValue: r.address || "", placeholder: '🏠 Rider Address (single line)',
+onBlur: function(ev){ if (ev.target.value !== (r.address || "")) updateAddress(r.id, ev.target.value.trim()); },
+style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
+e('select', { value: r.dealer_id || "", onChange: function(ev){ assignDealer(r.id, ev.target.value); },
+style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
+dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name); })
+),
 r.current_lat ? e('p', { style: { fontSize: 10, color: '#C9BBA8', margin: '4px 0 0' } }, '🛰️ Live: ' + Number(r.current_lat).toFixed(3) + ', ' + Number(r.current_lng).toFixed(3)) : null
 );
 })
@@ -286,34 +318,59 @@ r.current_lat ? e('p', { style: { fontSize: 10, color: '#C9BBA8', margin: '4px 0
 function DealersTab() {
 var [list, setList] = React.useState([]);
 var [restaurants, setRestaurants] = React.useState([]);
+var [riders, setRiders] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 var [openId, setOpenId] = React.useState(null);
+var [openView, setOpenView] = React.useState('restaurants');
 React.useEffect(function() {
 supabase.from("dealers").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
-supabase.from("restaurants").select("id,name,name_ta,dealer_id,is_active").then(function(res) { setRestaurants(res.data || []); });
+supabase.from("restaurants").select("id,name,name_ta,dealer_id,is_active,address").then(function(res) { setRestaurants(res.data || []); });
+supabase.from("riders").select("id,name,dealer_id,is_available,address,phone").then(function(res) { setRiders(res.data || []); });
 }, []);
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Dealers இல்லை') :
 list.map(function(d) {
 var myRestaurants = restaurants.filter(function(r) { return r.dealer_id === d.id; });
+var myRiders = riders.filter(function(r) { return r.dealer_id === d.id; });
 var isOpen = openId === d.id;
 return e('div', { key: d.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
-e('div', { onClick: function(){ setOpenId(isOpen ? null : d.id); }, style: { cursor: 'pointer' } },
+e('div', { onClick: function(){ setOpenId(isOpen ? null : d.id); setOpenView('restaurants'); }, style: { cursor: 'pointer' } },
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, d.name || '(பெயர் இல்லை)'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Commission: ' + d.commission_rate + '%'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Pincodes: ' + ((d.area_pincodes||[]).join(', ') || '-')),
-e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive'),
-e('p', { style: { fontSize: 12, fontWeight: 600, color: '#1C1410', marginTop: 6 } }, '🏪 ' + myRestaurants.length + ' Restaurants' + (myRestaurants.length ? (isOpen ? ' ▲' : ' ▼') : ''))
+e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive')
 ),
-isOpen ? e('div', { style: { marginTop: 8, borderTop: '1px solid #F3E9D8', paddingTop: 8 } },
-myRestaurants.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Restaurant இணைக்கப்படல') :
+isOpen ? e('div', { style: { marginTop: 10, borderTop: '1px solid #F3E9D8', paddingTop: 10 } },
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
+e('button', { onClick: function(){ setOpenView('restaurants'); },
+style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
+background: openView === 'restaurants' ? '#1C1410' : 'white', color: openView === 'restaurants' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏪 Restaurants (' + myRestaurants.length + ')'),
+e('button', { onClick: function(){ setOpenView('riders'); },
+style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
+background: openView === 'riders' ? '#1C1410' : 'white', color: openView === 'riders' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏍️ Riders (' + myRiders.length + ')')
+),
+openView === 'restaurants' ?
+(myRestaurants.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Restaurant இணைக்கப்படல') :
 myRestaurants.map(function(r) {
-return e('p', { key: r.id, style: { fontSize: 12, margin: '4px 0', display: 'flex', justifyContent: 'space-between' } },
-e('span', null, (r.name_ta || r.name)),
+return e('div', { key: r.id, style: { fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+e('span', { style: { fontWeight: 600 } }, (r.name_ta || r.name)),
 e('span', { style: { color: r.is_active === false ? '#C1442E' : '#5B7553' } }, r.is_active === false ? '❌' : '✅')
+),
+e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'Address இல்லை')
 );
-})
+})) :
+(myRiders.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Rider இணைக்கப்படல') :
+myRiders.map(function(r) {
+return e('div', { key: r.id, style: { fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+e('span', { style: { fontWeight: 600 } }, r.name + (r.phone ? (' · ' + r.phone) : '')),
+e('span', { style: { color: r.is_available ? '#5B7553' : '#C9BBA8' } }, r.is_available ? '🟢' : '⚪')
+),
+e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'Address இல்லை')
+);
+}))
 ) : null
 );
 })
