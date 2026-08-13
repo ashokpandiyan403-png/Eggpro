@@ -301,8 +301,10 @@ return sum + (item ? item.price * cart[id] : 0);
 var DELIVERY_RATE_PER_KM = 10;
 var EXTRA_SHOP_FEE = 10;
 var deliveryFee = Math.round(maxDistanceKm * DELIVERY_RATE_PER_KM) + (extraShopsCount * EXTRA_SHOP_FEE);
+// Restaurant price-லேயே GST (food) already இருக்கு (5%) — அதனால Food subtotal-ல மறுபடி GST போடமாட்டோம்.
+// இந்த GST rate, Delivery/Service fee மேல மட்டும் (18% platform service tax மாதிரி) apply ஆகும்.
 var payableBeforeGst = cartTotal + deliveryFee;
-var gstAmount = Math.round(payableBeforeGst * (gstRate / 100) * 100) / 100;
+var gstAmount = Math.round(deliveryFee * (gstRate / 100) * 100) / 100;
 var grandTotal = payableBeforeGst + gstAmount;
 
 var [paymentDone, setPaymentDone] = React.useState(false);
@@ -533,7 +535,7 @@ e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'f
 e('span', null, 'டெலிவரி கட்டணம்'), e('span', null, money(deliveryFee))
 ),
 gstRate > 0 ? e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
-e('span', null, 'GST (' + gstRate + '%)'), e('span', null, money(gstAmount))
+e('span', null, 'GST (' + gstRate + '% Delivery மேல)'), e('span', null, money(gstAmount))
 ) : null,
 e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } },
 e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
