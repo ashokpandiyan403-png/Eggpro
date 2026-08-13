@@ -327,6 +327,12 @@ supabase.from("dealers").select("*").then(function(res) { setList(res.data || []
 supabase.from("restaurants").select("id,name,name_ta,dealer_id,is_active,address").then(function(res) { setRestaurants(res.data || []); });
 supabase.from("riders").select("id,name,dealer_id,is_available,address,phone").then(function(res) { setRiders(res.data || []); });
 }, []);
+function updateDeposit(id, amount, status) {
+supabase.from("dealers").update({ deposit_amount: Number(amount) || 0, deposit_status: status }).eq("id", id).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(x) { return x.id === id ? Object.assign({}, x, { deposit_amount: Number(amount) || 0, deposit_status: status }) : x; }); });
+});
+}
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Dealers இல்லை') :
@@ -339,7 +345,9 @@ e('div', { onClick: function(){ setOpenId(isOpen ? null : d.id); setOpenView('re
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, d.name || '(பெயர் இல்லை)'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Commission: ' + d.commission_rate + '%'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Pincodes: ' + ((d.area_pincodes||[]).join(', ') || '-')),
-e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive')
+e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive'),
+e('p', { style: { fontSize: 11, fontWeight: 600, margin: '4px 0 0', color: d.deposit_status === 'paid' ? '#5B7553' : (d.deposit_status === 'refunded' ? '#8A6D3B' : '#C1442E') } },
+'💰 Deposit: ' + money(d.deposit_amount || 0) + ' (' + (d.deposit_status === 'paid' ? '✅ Paid' : d.deposit_status === 'refunded' ? '↩️ Refunded' : '⏳ Pending') + ')')
 ),
 isOpen ? e('div', { style: { marginTop: 10, borderTop: '1px solid #F3E9D8', paddingTop: 10 } },
 e('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
@@ -348,8 +356,25 @@ style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1
 background: openView === 'restaurants' ? '#1C1410' : 'white', color: openView === 'restaurants' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏪 Restaurants (' + myRestaurants.length + ')'),
 e('button', { onClick: function(){ setOpenView('riders'); },
 style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
-background: openView === 'riders' ? '#1C1410' : 'white', color: openView === 'riders' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏍️ Riders (' + myRiders.length + ')')
+background: openView === 'riders' ? '#1C1410' : 'white', color: openView === 'riders' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏍️ Riders (' + myRiders.length + ')'),
+e('button', { onClick: function(){ setOpenView('deposit'); },
+style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
+background: openView === 'deposit' ? '#1C1410' : 'white', color: openView === 'deposit' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '💰 Deposit')
 ),
+openView === 'deposit' ? e('div', { onClick: function(ev){ ev.stopPropagation(); } },
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, 'Deposit Amount (₹)'),
+e('input', { type: 'number', defaultValue: d.deposit_amount || 0,
+onBlur: function(ev){ updateDeposit(d.id, ev.target.value, d.deposit_status || 'pending'); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 8, boxSizing: 'border-box' } }),
+e('div', { style: { display: 'flex', gap: 6 } },
+['pending','paid','refunded'].map(function(st) {
+var labels = { pending: '⏳ Pending', paid: '✅ Paid', refunded: '↩️ Refunded' };
+return e('button', { key: st, onClick: function(){ updateDeposit(d.id, d.deposit_amount || 0, st); },
+style: { flex: 1, padding: 6, fontSize: 10, borderRadius: 8, border: '1px solid #EEE0C8',
+background: (d.deposit_status || 'pending') === st ? '#1C1410' : 'white', color: (d.deposit_status || 'pending') === st ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, labels[st]);
+})
+)
+) : null,
 openView === 'restaurants' ?
 (myRestaurants.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Restaurant இணைக்கப்படல') :
 myRestaurants.map(function(r) {
@@ -361,6 +386,7 @@ e('span', { style: { color: r.is_active === false ? '#C1442E' : '#5B7553' } }, r
 e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'Address இல்லை')
 );
 })) :
+openView === 'riders' ?
 (myRiders.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Rider இணைக்கப்படல') :
 myRiders.map(function(r) {
 return e('div', { key: r.id, style: { fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
@@ -370,7 +396,7 @@ e('span', { style: { color: r.is_available ? '#5B7553' : '#C9BBA8' } }, r.is_ava
 ),
 e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'Address இல்லை')
 );
-}))
+})) : null
 ) : null
 );
 })
