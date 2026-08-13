@@ -301,10 +301,20 @@ var PAGE_SIZE = 40;
 
 function load() {
 setLoading(true);
-supabase.from("pincodes").select("*").order("pincode").range(0, 4999).then(function(res) {
-setList(res.data || []);
+var allRows = [];
+function fetchChunk(from) {
+supabase.from("pincodes").select("*").order("pincode").range(from, from + 999).then(function(res) {
+var rows = res.data || [];
+allRows = allRows.concat(rows);
+if (rows.length === 1000) {
+fetchChunk(from + 1000);
+} else {
+setList(allRows);
 setLoading(false);
+}
 });
+}
+fetchChunk(0);
 }
 
 React.useEffect(function() {
