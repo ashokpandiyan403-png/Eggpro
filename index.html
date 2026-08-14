@@ -56,6 +56,13 @@ setLoading(false);
 });
 }
 
+function googleSignIn() {
+setErr("");
+supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } }).then(function(res) {
+if (res.error) setErr(res.error.message);
+});
+}
+
 return e('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 } },
 e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background: 'white', borderRadius: 16, padding: 24, border: '1px solid #EEE0C8' } },
 e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
@@ -64,6 +71,14 @@ e('div', null,
 e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, mode === 'login' ? 'Login' : 'Sign Up')
 )
+),
+e('button', { type: 'button', onClick: googleSignIn,
+style: { width: '100%', background: 'white', color: '#1C1410', fontWeight: 600, fontSize: 14, padding: 12, borderRadius: 12, border: '1px solid #EEE0C8', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 } },
+e('span', { style: { fontSize: 18 } }, '🔵'), 'Google-வழியா Login பண்ணுங்க'),
+e('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 } },
+e('div', { style: { flex: 1, height: 1, background: '#EEE0C8' } }),
+e('span', { style: { fontSize: 11, color: '#C9BBA8' } }, 'அல்லது'),
+e('div', { style: { flex: 1, height: 1, background: '#EEE0C8' } })
 ),
 e('input', { type: 'email', placeholder: 'Email', required: true, value: email, onChange: function(ev){ setEmail(ev.target.value); },
 style: { width: '100%', marginBottom: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid #EEE0C8', fontSize: 14, boxSizing: 'border-box' } }),
@@ -149,6 +164,11 @@ var [addressId, setAddressId] = React.useState(null);
 var [addressText, setAddressText] = React.useState("");
 var [addressLatLng, setAddressLatLng] = React.useState(null);
 var [addressPincode, setAddressPincode] = React.useState(null);
+var [addresses, setAddresses] = React.useState([]);
+var [addrFormOpen, setAddrFormOpen] = React.useState(false);
+var [newLabel, setNewLabel] = React.useState("Home");
+var [newRecipientName, setNewRecipientName] = React.useState("");
+var [newRecipientPhone, setNewRecipientPhone] = React.useState("");
 var [gpsBusy, setGpsBusy] = React.useState(false);
 var [gpsErr, setGpsErr] = React.useState("");
 var [orderId, setOrderId] = React.useState(null);
@@ -165,7 +185,9 @@ if (res.data && res.data.admin_commission_rate != null) setAdminCommissionRate(N
 });
 }, []);
 
-function captureLocation() {
+function captureLocation(opts) {
+opts = opts || {};
+var isNew = !!opts.isNew;
 if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
 setGpsBusy(true); setGpsErr("");
 
@@ -176,18 +198,22 @@ fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&l
 .then(function(geo) {
 var text = (geo && geo.display_name) ? geo.display_name : (lat.toFixed(5) + ", " + lng.toFixed(5));
 var pin = (geo && geo.address && geo.address.postcode) ? geo.address.postcode : null;
-var payload = { customer_id: session.user.id, label: "Home", full_address: text, latitude: lat, longitude: lng, pincode: pin };
-var op = addressId
+var payload = { customer_id: session.user.id, label: isNew ? (newLabel || "Home") : "Home", full_address: text, latitude: lat, longitude: lng, pincode: pin };
+if (isNew) { payload.recipient_name = newRecipientName || null; payload.recipient_phone = newRecipientPhone || null; }
+var op = (addressId && !isNew)
 ? supabase.from("addresses").update(payload).eq("id", addressId).select()
 : supabase.from("addresses").insert(payload).select();
 op.then(function(res) {
 setGpsBusy(false);
 if (res.error) { setGpsErr(res.error.message); return; }
 if (res.data && res.data[0]) {
-setAddressId(res.data[0].id);
+var saved = res.data[0];
+setAddresses(function(prev) { return isNew ? prev.concat([saved]) : prev.map(function(a){ return a.id === saved.id ? saved : a; }); });
+setAddressId(saved.id);
 setAddressText(text);
 setAddressLatLng({ lat: lat, lng: lng });
 setAddressPincode(pin);
+if (isNew) { setAddrFormOpen(false); setNewLabel("Home"); setNewRecipientName(""); setNewRecipientPhone(""); setScreen('menu'); }
 }
 });
 }).catch(function() {
@@ -218,14 +244,29 @@ return "Location error: " + err.message;
 navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
+function selectAddress(a) {
+setAddressId(a.id);
+setAddressText(a.full_address);
+if (a.latitude) setAddressLatLng({ lat: a.latitude, lng: a.longitude }); else setAddressLatLng(null);
+setAddressPincode(a.pincode || null);
+setCart({});
+setScreen('menu');
+}
+
 React.useEffect(function() {
 supabase.from("profiles").select("id").eq("id", session.user.id).then(function(res) {
 var ensureProfile = (res.data && res.data.length > 0)
 ? Promise.resolve()
-: supabase.from("profiles").insert({ id: session.user.id, full_name: "Test Customer", phone: "9000000000", role: "customer" });
+: supabase.from("profiles").insert({
+id: session.user.id,
+full_name: (session.user.user_metadata && session.user.user_metadata.full_name) || session.user.email || "Customer",
+phone: "9" + String(Date.now()).slice(-9),
+role: "customer"
+});
 Promise.resolve(ensureProfile).then(function(pres) {
 if (pres && pres.error) { console.error("profile error", pres.error); }
-supabase.from("addresses").select("id, full_address, latitude, longitude, pincode").eq("customer_id", session.user.id).then(function(ares) {
+supabase.from("addresses").select("id, full_address, latitude, longitude, pincode, label, recipient_name, recipient_phone").eq("customer_id", session.user.id).order("id").then(function(ares) {
+setAddresses(ares.data || []);
 if (ares.data && ares.data.length > 0) {
 var a = ares.data[0];
 setAddressId(a.id);
@@ -238,7 +279,7 @@ customer_id: session.user.id, label: "Home",
 full_address: "📍 Location set பண்ணுங்க"
 }).select().then(function(ires) {
 if (ires.error) { console.error("address error", ires.error); alert("Address create error: " + ires.error.message); return; }
-if (ires.data && ires.data[0]) { setAddressId(ires.data[0].id); setAddressText(ires.data[0].full_address); }
+if (ires.data && ires.data[0]) { setAddressId(ires.data[0].id); setAddressText(ires.data[0].full_address); setAddresses([ires.data[0]]); }
 setLoading(false);
 });
 }
@@ -469,6 +510,41 @@ e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16,
 );
 }
 
+if (screen === 'addresses') {
+return e('div', { style: { padding: 16, paddingBottom: 40 } },
+e('p', { style: { fontWeight: 'bold', fontSize: 16, marginBottom: 12 } }, '📍 Delivery Addresses'),
+addresses.map(function(a) {
+var isActive = a.id === addressId;
+return e('div', { key: a.id, onClick: function(){ selectAddress(a); },
+style: { background: isActive ? '#1C1410' : 'white', color: isActive ? 'white' : '#1C1410', borderRadius: 14, padding: 14, border: '1px solid #EEE0C8', marginBottom: 10, cursor: 'pointer' } },
+e('p', { style: { fontWeight: 700, fontSize: 14, margin: 0 } }, (isActive ? '✅ ' : '📍 ') + (a.label || 'Address')),
+e('p', { style: { fontSize: 12, color: isActive ? '#C9BBA8' : '#8A6D3B', margin: '4px 0 0' } }, a.full_address || 'Location set பண்ணாதது'),
+a.recipient_name ? e('p', { style: { fontSize: 11, color: isActive ? '#E8A33D' : '#C1442E', margin: '4px 0 0' } }, '👤 ' + a.recipient_name + (a.recipient_phone ? (' · ' + a.recipient_phone) : '')) : null
+);
+}),
+!addrFormOpen ? e('button', { onClick: function(){ setAddrFormOpen(true); },
+style: { width: '100%', padding: 12, borderRadius: 12, border: '1px dashed #E8A33D', background: 'white', color: '#8A6D3B', fontWeight: 600, marginTop: 6 } }, '➕ புது Address சேர்க்க') :
+e('div', { style: { background: 'white', borderRadius: 14, padding: 14, border: '1px solid #EEE0C8', marginTop: 6 } },
+e('p', { style: { fontWeight: 700, fontSize: 13, marginBottom: 10 } }, 'புது Delivery Address'),
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, 'Label (Home/Office/Amma வீடு)'),
+e('input', { type: 'text', value: newLabel, onChange: function(ev){ setNewLabel(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, 'யாருக்கு order (பெயர்) — வேறு ஒருவருக்கு ஆனா'),
+e('input', { type: 'text', value: newRecipientName, placeholder: 'Optional', onChange: function(ev){ setNewRecipientName(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, 'அவங்க Phone Number'),
+e('input', { type: 'text', value: newRecipientPhone, placeholder: 'Optional', onChange: function(ev){ setNewRecipientPhone(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 12, boxSizing: 'border-box' } }),
+gpsErr ? e('p', { style: { fontSize: 11, color: '#C1442E', marginBottom: 8 } }, gpsErr) : null,
+e('button', { onClick: function(){ captureLocation({ isNew: true }); }, disabled: gpsBusy,
+style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700, marginBottom: 8 } },
+gpsBusy ? 'Location எடுக்குது...' : '📍 இப்போ இருக்குற Location-ஐ இந்த Address-ஆ Save பண்ணுங்க'),
+e('button', { onClick: function(){ setAddrFormOpen(false); }, style: { width: '100%', padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#8A6D3B', fontSize: 12 } }, 'Cancel')
+),
+e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16, background: 'white', color: '#1C1410', padding: 10, borderRadius: 12, border: '1px solid #EEE0C8', width: '100%' } }, '⬅ மெனுவுக்கு திரும்பு')
+);
+}
+
 return e('div', { style: { minHeight: '100vh', paddingBottom: 220 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
 e('div', null,
@@ -484,9 +560,12 @@ e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, '📍 Delivery 
 e('p', { style: { fontSize: 12, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, addressText || 'இன்னும் set பண்ணல'),
 gpsErr ? e('p', { style: { fontSize: 10, color: '#C1442E', margin: 0 } }, gpsErr) : null
 ),
-e('button', { onClick: captureLocation, disabled: gpsBusy,
+e('button', { onClick: function(){ captureLocation(); }, disabled: gpsBusy,
 style: { fontSize: 11, background: '#1C1410', color: '#E8A33D', border: 'none', padding: '8px 10px', borderRadius: 10, whiteSpace: 'nowrap' } },
-gpsBusy ? '...' : '📍 Location')
+gpsBusy ? '...' : '📍 Location'),
+e('button', { onClick: function(){ setScreen('addresses'); },
+style: { fontSize: 11, background: 'white', color: '#1C1410', border: '1px solid #EEE0C8', padding: '8px 10px', borderRadius: 10, whiteSpace: 'nowrap' } },
+'மாற்று')
 )
 ),
 e('div', { style: { padding: 16 } },
