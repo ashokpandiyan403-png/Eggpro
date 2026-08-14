@@ -156,10 +156,12 @@ var [orderStatus, setOrderStatus] = React.useState(null);
 var [loading, setLoading] = React.useState(true);
 var [placing, setPlacing] = React.useState(false);
 var [gstRate, setGstRate] = React.useState(0);
+var [adminCommissionRate, setAdminCommissionRate] = React.useState(4.3);
 
 React.useEffect(function() {
-supabase.from("app_settings").select("gst_rate").eq("id", 1).maybeSingle().then(function(res) {
+supabase.from("app_settings").select("gst_rate, admin_commission_rate").eq("id", 1).maybeSingle().then(function(res) {
 if (res.data && res.data.gst_rate != null) setGstRate(Number(res.data.gst_rate));
+if (res.data && res.data.admin_commission_rate != null) setAdminCommissionRate(Number(res.data.admin_commission_rate));
 });
 }, []);
 
@@ -363,7 +365,7 @@ alert("Payment ஆரம்பிக்க முடியல். Internet check
 });
 }
 
-var ADMIN_COMMISSION_RATE = 0.043;
+var ADMIN_COMMISSION_RATE = adminCommissionRate / 100;
 var DEFAULT_DEALER_RATE = 10;
 
 function placeOrder() {
@@ -551,7 +553,10 @@ style: { width: '100%', background: (!addressId || !addressLatLng ? '#C9BBA8' : 
 !addressLatLng ? '📍 மேலே Location set பண்ணுங்க' : placing ? 'Placing order...' : (cartCount + ' items · ' + money(grandTotal) + ' · Order செய்')
 )
 )
-) : null
+) : null,
+e('div', { style: { textAlign: 'center', padding: '18px 16px 90px' } },
+e('a', { href: 'legal/index.html', style: { fontSize: 11, color: '#8A6D3B', textDecoration: 'underline' } }, 'Terms · Privacy · Refund Policy')
+)
 );
 }
 
