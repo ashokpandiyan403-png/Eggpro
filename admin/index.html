@@ -333,6 +333,12 @@ if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(x) { return x.id === id ? Object.assign({}, x, { deposit_amount: Number(amount) || 0, deposit_status: status }) : x; }); });
 });
 }
+function updateCommission(id, rate) {
+supabase.from("dealers").update({ commission_rate: Number(rate) || 0 }).eq("id", id).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(x) { return x.id === id ? Object.assign({}, x, { commission_rate: Number(rate) || 0 }) : x; }); });
+});
+}
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Dealers இல்லை') :
@@ -343,7 +349,11 @@ var isOpen = openId === d.id;
 return e('div', { key: d.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
 e('div', { onClick: function(){ setOpenId(isOpen ? null : d.id); setOpenView('restaurants'); }, style: { cursor: 'pointer' } },
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, d.name || '(பெயர் இல்லை)'),
-e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Commission: ' + d.commission_rate + '%'),
+e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Commission Rate (%)'),
+e('input', { type: 'number', defaultValue: d.commission_rate, step: '0.1',
+onClick: function(ev){ ev.stopPropagation(); },
+onBlur: function(ev){ ev.stopPropagation(); if (Number(ev.target.value) !== Number(d.commission_rate)) updateCommission(d.id, ev.target.value); },
+style: { width: '80px', padding: 4, borderRadius: 8, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 2 } }),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Pincodes: ' + ((d.area_pincodes||[]).join(', ') || '-')),
 e('p', { style: { fontSize: 11, color: d.is_active ? '#5B7553' : '#C1442E', margin: '4px 0 0' } }, d.is_active ? '✅ Active' : '❌ Inactive'),
 e('p', { style: { fontSize: 11, fontWeight: 600, margin: '4px 0 0', color: d.deposit_status === 'paid' ? '#5B7553' : (d.deposit_status === 'refunded' ? '#8A6D3B' : '#C1442E') } },
@@ -656,17 +666,22 @@ style: { width: '100%', marginTop: 6, padding: 7, borderRadius: 10, border: 'non
 function SettingsTab() {
 var [gstin, setGstin] = React.useState("");
 var [gstRate, setGstRate] = React.useState(5);
+var [adminCommissionRate, setAdminCommissionRate] = React.useState(7);
 var [loading, setLoading] = React.useState(true);
 var [saving, setSaving] = React.useState(false);
 React.useEffect(function() {
 supabase.from("app_settings").select("*").eq("id", 1).maybeSingle().then(function(res) {
-if (res.data) { setGstin(res.data.gstin || ""); setGstRate(res.data.gst_rate != null ? res.data.gst_rate : 5); }
+if (res.data) {
+setGstin(res.data.gstin || "");
+setGstRate(res.data.gst_rate != null ? res.data.gst_rate : 5);
+setAdminCommissionRate(res.data.admin_commission_rate != null ? res.data.admin_commission_rate : 7);
+}
 setLoading(false);
 });
 }, []);
 function save() {
 setSaving(true);
-supabase.from("app_settings").upsert({ id: 1, gstin: gstin || null, gst_rate: Number(gstRate) || 0, updated_at: new Date().toISOString() }).then(function(res) {
+supabase.from("app_settings").upsert({ id: 1, gstin: gstin || null, gst_rate: Number(gstRate) || 0, admin_commission_rate: Number(adminCommissionRate) || 0, updated_at: new Date().toISOString() }).then(function(res) {
 setSaving(false);
 if (res.error) { alert("Error: " + res.error.message); return; }
 alert("Settings save ஆயிடுச்சு!");
@@ -685,6 +700,13 @@ e('input', { type: 'number', value: gstRate, onChange: function(ev){ setGstRate(
 step: '0.1',
 style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 14, boxSizing: 'border-box' } }),
 e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'கவனிக்கவும்: Restaurant price-லேயே Food GST already இருக்கும்னு நினைச்சு, இந்த % Delivery fee மேல மட்டும் (service tax மாதிரி) apply ஆகும், முழு bill மேல இல்ல.'),
+e('div', { style: { borderTop: '1px solid #F3E9D8', paddingTop: 14, marginTop: 4 } },
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Admin Commission Rate (%)'),
+e('input', { type: 'number', value: adminCommissionRate, onChange: function(ev){ setAdminCommissionRate(ev.target.value); },
+step: '0.1',
+style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 8, boxSizing: 'border-box' } }),
+e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'இது (Subtotal+Delivery) மேல calculate ஆகும். Razorpay gateway fee (~2.36%) இதுல இருந்து தானே கழியும் — அதனால இதை low-ஆ வைக்காதீங்க. Dealer commission ஒவ்வொரு Dealer-க்கும் Dealers tab-ல தனியா set பண்ணலாம்.')
+),
 e('button', { onClick: save, disabled: saving,
 style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700 } }, saving ? 'Saving...' : '💾 Save Settings')
 )
