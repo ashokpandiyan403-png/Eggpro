@@ -176,14 +176,38 @@ var [orderStatus, setOrderStatus] = React.useState(null);
 var [loading, setLoading] = React.useState(true);
 var [placing, setPlacing] = React.useState(false);
 var [gstRate, setGstRate] = React.useState(0);
-var [adminCommissionRate, setAdminCommissionRate] = React.useState(4.3);
+var [adminCommissionRate, setAdminCommissionRate] = React.useState(9);
+var [riderBaseFare, setRiderBaseFare] = React.useState(20);
+var [riderBaseKm, setRiderBaseKm] = React.useState(2);
+var [riderPerKmRate, setRiderPerKmRate] = React.useState(5);
+var [riderRainMultiplier, setRiderRainMultiplier] = React.useState(1.15);
+var [riderTrafficMultiplier, setRiderTrafficMultiplier] = React.useState(1.15);
+var [trafficSurgeActive, setTrafficSurgeActive] = React.useState(false);
+var [rainSurgeActive, setRainSurgeActive] = React.useState(false);
 
 React.useEffect(function() {
-supabase.from("app_settings").select("gst_rate, admin_commission_rate").eq("id", 1).maybeSingle().then(function(res) {
+supabase.from("app_settings").select("*").eq("id", 1).maybeSingle().then(function(res) {
 if (res.data && res.data.gst_rate != null) setGstRate(Number(res.data.gst_rate));
 if (res.data && res.data.admin_commission_rate != null) setAdminCommissionRate(Number(res.data.admin_commission_rate));
+if (res.data && res.data.rider_base_fare != null) setRiderBaseFare(Number(res.data.rider_base_fare));
+if (res.data && res.data.rider_base_km != null) setRiderBaseKm(Number(res.data.rider_base_km));
+if (res.data && res.data.rider_per_km_rate != null) setRiderPerKmRate(Number(res.data.rider_per_km_rate));
+if (res.data && res.data.rider_rain_surge_multiplier != null) setRiderRainMultiplier(Number(res.data.rider_rain_surge_multiplier));
+if (res.data && res.data.rider_traffic_surge_multiplier != null) setRiderTrafficMultiplier(Number(res.data.rider_traffic_surge_multiplier));
+if (res.data && res.data.traffic_surge_active != null) setTrafficSurgeActive(!!res.data.traffic_surge_active);
 });
 }, []);
+
+// Rain இருக்கான்னு Delivery Address location வச்சு free weather API (Open-Meteo) check பண்றது
+React.useEffect(function() {
+if (!addressLatLng) return;
+fetch("https://api.open-meteo.com/v1/forecast?latitude=" + addressLatLng.lat + "&longitude=" + addressLatLng.lng + "&current=precipitation")
+.then(function(r) { return r.json(); })
+.then(function(w) {
+var precip = w && w.current ? Number(w.current.precipitation || 0) : 0;
+setRainSurgeActive(precip > 0);
+}).catch(function() { /* weather check fail ஆனா, rain surge இல்லாம proceed ஆகும் */ });
+}, [addressLatLng]);
 
 function captureLocation(opts) {
 opts = opts || {};
@@ -341,9 +365,21 @@ var cartTotal = Object.keys(cart).reduce(function(sum, id) {
 var item = menu.filter(function(m) { return m.id === id; })[0];
 return sum + (item ? item.price * cart[id] : 0);
 }, 0);
-var DELIVERY_RATE_PER_KM = 10;
 var EXTRA_SHOP_FEE = 10;
-var deliveryFee = Math.round(maxDistanceKm * DELIVERY_RATE_PER_KM) + (extraShopsCount * EXTRA_SHOP_FEE);
+// Rider Charge — Distance-based (2km வரை Min ₹20, அப்புறம் +₹5/km) + Extra-shop fee, மேலும் Rain/Traffic surge
+var riderBaseCharge = (maxDistanceKm <= riderBaseKm)
+? riderBaseFare
+: riderBaseFare + Math.ceil(maxDistanceKm - riderBaseKm) * riderPerKmRate;
+riderBaseCharge += extraShopsCount * EXTRA_SHOP_FEE;
+var surgeMultiplier = 1;
+if (rainSurgeActive) surgeMultiplier *= riderRainMultiplier;
+if (trafficSurgeActive) surgeMultiplier *= riderTrafficMultiplier;
+var riderCharge = Math.round(riderBaseCharge * surgeMultiplier);
+// Customer-க்கு காட்டும் Delivery Fee = Rider Charge + 20% (Rider Charge/5) — இந்த 20% Admin/Dealer-க்கு 50:50 split ஆகும்
+var deliveryFee = Math.round(riderCharge * 1.2);
+var deliveryMargin = deliveryFee - riderCharge;
+var deliveryAdminShare = Math.round((deliveryMargin / 2) * 100) / 100;
+var deliveryDealerShare = Math.round((deliveryMargin - deliveryAdminShare) * 100) / 100;
 // Restaurant price-லேயே GST (food) already இருக்கு (5%) — அதனால Food subtotal-ல மறுபடி GST போடமாட்டோம்.
 // இந்த GST rate, Delivery/Service fee மேல மட்டும் (18% platform service tax மாதிரி) apply ஆகும்.
 var payableBeforeGst = cartTotal + deliveryFee;
@@ -407,18 +443,22 @@ alert("Payment ஆரம்பிக்க முடியல். Internet check
 }
 
 var ADMIN_COMMISSION_RATE = adminCommissionRate / 100;
-var DEFAULT_DEALER_RATE = 10;
+var DEFAULT_DEALER_RATE = 6;
 
 function placeOrder() {
 if (!addressId) { alert("Address தயார் ஆகல, ஒரு நிமிடம் காத்திருந்து try பண்ணுங்க"); return; }
 if (cartRestaurantIds.length === 0) { alert("Cart காலியா இருக்கு"); return; }
 setPlacing(true);
 
-var adminCommission = Math.round(payableBeforeGst * ADMIN_COMMISSION_RATE * 100) / 100;
-var dealerCommission = dealerId ? Math.round(payableBeforeGst * (dealerCommissionRate / 100) * 100) / 100 : 0;
-var balance = payableBeforeGst - adminCommission - dealerCommission;
-var totalRestaurantPayout = Math.round(balance * (cartTotal / payableBeforeGst) * 100) / 100;
-var riderPayout = Math.round((balance - totalRestaurantPayout) * 100) / 100;
+// Food Commission — cartTotal (Subtotal) மேல மட்டும் (Delivery fee தனி economics-ல் handle ஆகுது)
+var adminFoodCommission = Math.round(cartTotal * ADMIN_COMMISSION_RATE * 100) / 100;
+var dealerFoodCommission = dealerId ? Math.round(cartTotal * (dealerCommissionRate / 100) * 100) / 100 : 0;
+var totalRestaurantPayout = Math.round((cartTotal - adminFoodCommission - dealerFoodCommission) * 100) / 100;
+
+// Delivery Fee economics — Rider-க்கு Full Charge, மீதி 20% margin Admin/Dealer 50:50
+var riderPayout = riderCharge;
+var adminCommission = Math.round((adminFoodCommission + deliveryAdminShare) * 100) / 100;
+var dealerCommission = Math.round((dealerFoodCommission + deliveryDealerShare) * 100) / 100;
 
 // ஒவ்வொரு restaurant-க்கும் அவங்க items subtotal-ஐ வச்சு payout பிரிக்கிறோம்
 var perRestaurantSubtotal = {};
@@ -438,6 +478,9 @@ dealer_commission_amount: dealerCommission,
 admin_commission_amount: adminCommission,
 restaurant_payout_amount: totalRestaurantPayout,
 rider_payout_amount: riderPayout,
+rider_charge: riderCharge,
+delivery_admin_share: deliveryAdminShare,
+delivery_dealer_share: deliveryDealerShare,
 commission_amount: adminCommission + dealerCommission
 }).select().then(function(res) {
 if (res.error || !res.data || !res.data[0]) { alert("Order Error: " + (res.error ? res.error.message : "unknown")); setPlacing(false); return; }
@@ -613,8 +656,10 @@ e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 2, display: 'f
 e('span', null, 'உணவு மொத்தம்'), e('span', null, money(cartTotal))
 ),
 e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
-e('span', null, 'டெலிவரி கட்டணம்'), e('span', null, money(deliveryFee))
+e('span', null, 'டெலிவரி கட்டணம்' + ((rainSurgeActive || trafficSurgeActive) ? ' ⚡' : '')), e('span', null, money(deliveryFee))
 ),
+(rainSurgeActive || trafficSurgeActive) ? e('p', { style: { fontSize: 10, color: '#C1442E', marginTop: -4, marginBottom: 8 } },
+'⚡ ' + [rainSurgeActive ? 'மழை' : null, trafficSurgeActive ? 'Traffic' : null].filter(Boolean).join(' + ') + ' காரணமா Delivery fee கொஞ்சம் அதிகமா இருக்கு') : null,
 gstRate > 0 ? e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
 e('span', null, 'GST (' + gstRate + '% Delivery மேல)'), e('span', null, money(gstAmount))
 ) : null,
