@@ -173,7 +173,19 @@ if (res.error) alert("Error: " + res.error.message);
 }
 function assignRider(id, riderId) {
 supabase.from("orders").update({ rider_id: riderId || null }).eq("id", id).then(function(res) {
-if (res.error) alert("Error: " + res.error.message);
+if (res.error) { alert("Error: " + res.error.message); return; }
+if (riderId) {
+var ord = orders.filter(function(o){ return o.id === id; })[0];
+var amt = ord ? Number(ord.rider_charge || ord.rider_payout_amount || 0) : 0;
+if (amt > 0) {
+supabase.from("payouts").select("id").eq("order_id", id).eq("recipient_type", "rider").then(function(pres) {
+if (pres.data && pres.data.length > 0) return; // already created
+supabase.from("payouts").insert({ order_id: id, recipient_type: 'rider', recipient_id: riderId, amount: amt, status: 'pending' }).then(function(ires) {
+if (ires.error) console.error("rider payout error", ires.error);
+});
+});
+}
+}
 });
 }
 
@@ -237,6 +249,12 @@ if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { fssai_number: fssai }) : r; }); });
 });
 }
+function toggleGstRegistered(restId, current) {
+supabase.from("restaurants").update({ gst_registered: !current }).eq("id", restId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { gst_registered: !current }) : r; }); });
+});
+}
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Restaurants இல்லை') :
@@ -249,6 +267,11 @@ e('p', { style: { fontSize: 10, fontWeight: 600, margin: '4px 0 0', color: r.fss
 e('input', { type: 'text', defaultValue: r.fssai_number || "", placeholder: '🧾 FSSAI Number போடுங்க',
 onBlur: function(ev){ if (ev.target.value !== (r.fssai_number || "")) updateFssai(r.id, ev.target.value.trim()); },
 style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
+e('div', { onClick: function(){ toggleGstRegistered(r.id, !!r.gst_registered); },
+style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, padding: 8, borderRadius: 10, background: r.gst_registered ? '#EAF3E6' : '#F8F1E4', cursor: 'pointer' } },
+e('span', { style: { fontSize: 11, fontWeight: 600, color: r.gst_registered ? '#5B7553' : '#8A6D3B' } }, r.gst_registered ? '🧾 GST Registered' : '🧾 GST Not Registered'),
+e('span', { style: { fontSize: 16 } }, r.gst_registered ? '✅' : '⚪')
+),
 e('select', { value: r.dealer_id || "", onChange: function(ev){ assignDealer(r.id, ev.target.value); },
 style: { width: '100%', marginTop: 8, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
 e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
@@ -666,7 +689,13 @@ style: { width: '100%', marginTop: 6, padding: 7, borderRadius: 10, border: 'non
 function SettingsTab() {
 var [gstin, setGstin] = React.useState("");
 var [gstRate, setGstRate] = React.useState(5);
-var [adminCommissionRate, setAdminCommissionRate] = React.useState(7);
+var [adminCommissionRate, setAdminCommissionRate] = React.useState(9);
+var [riderBaseFare, setRiderBaseFare] = React.useState(20);
+var [riderBaseKm, setRiderBaseKm] = React.useState(2);
+var [riderPerKmRate, setRiderPerKmRate] = React.useState(5);
+var [riderRainMultiplier, setRiderRainMultiplier] = React.useState(1.15);
+var [riderTrafficMultiplier, setRiderTrafficMultiplier] = React.useState(1.15);
+var [trafficSurgeActive, setTrafficSurgeActive] = React.useState(false);
 var [loading, setLoading] = React.useState(true);
 var [saving, setSaving] = React.useState(false);
 React.useEffect(function() {
@@ -674,14 +703,26 @@ supabase.from("app_settings").select("*").eq("id", 1).maybeSingle().then(functio
 if (res.data) {
 setGstin(res.data.gstin || "");
 setGstRate(res.data.gst_rate != null ? res.data.gst_rate : 5);
-setAdminCommissionRate(res.data.admin_commission_rate != null ? res.data.admin_commission_rate : 7);
+setAdminCommissionRate(res.data.admin_commission_rate != null ? res.data.admin_commission_rate : 9);
+setRiderBaseFare(res.data.rider_base_fare != null ? res.data.rider_base_fare : 20);
+setRiderBaseKm(res.data.rider_base_km != null ? res.data.rider_base_km : 2);
+setRiderPerKmRate(res.data.rider_per_km_rate != null ? res.data.rider_per_km_rate : 5);
+setRiderRainMultiplier(res.data.rider_rain_surge_multiplier != null ? res.data.rider_rain_surge_multiplier : 1.15);
+setRiderTrafficMultiplier(res.data.rider_traffic_surge_multiplier != null ? res.data.rider_traffic_surge_multiplier : 1.15);
+setTrafficSurgeActive(!!res.data.traffic_surge_active);
 }
 setLoading(false);
 });
 }, []);
 function save() {
 setSaving(true);
-supabase.from("app_settings").upsert({ id: 1, gstin: gstin || null, gst_rate: Number(gstRate) || 0, admin_commission_rate: Number(adminCommissionRate) || 0, updated_at: new Date().toISOString() }).then(function(res) {
+supabase.from("app_settings").upsert({
+id: 1, gstin: gstin || null, gst_rate: Number(gstRate) || 0, admin_commission_rate: Number(adminCommissionRate) || 0,
+rider_base_fare: Number(riderBaseFare) || 0, rider_base_km: Number(riderBaseKm) || 0, rider_per_km_rate: Number(riderPerKmRate) || 0,
+rider_rain_surge_multiplier: Number(riderRainMultiplier) || 1, rider_traffic_surge_multiplier: Number(riderTrafficMultiplier) || 1,
+traffic_surge_active: trafficSurgeActive,
+updated_at: new Date().toISOString()
+}).then(function(res) {
 setSaving(false);
 if (res.error) { alert("Error: " + res.error.message); return; }
 alert("Settings save ஆயிடுச்சு!");
@@ -701,14 +742,42 @@ step: '0.1',
 style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 14, boxSizing: 'border-box' } }),
 e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'கவனிக்கவும்: Restaurant price-லேயே Food GST already இருக்கும்னு நினைச்சு, இந்த % Delivery fee மேல மட்டும் (service tax மாதிரி) apply ஆகும், முழு bill மேல இல்ல.'),
 e('div', { style: { borderTop: '1px solid #F3E9D8', paddingTop: 14, marginTop: 4 } },
-e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Admin Commission Rate (%)'),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Admin Commission Rate (%) — Food Subtotal மேல'),
 e('input', { type: 'number', value: adminCommissionRate, onChange: function(ev){ setAdminCommissionRate(ev.target.value); },
 step: '0.1',
 style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 13, marginTop: 6, marginBottom: 8, boxSizing: 'border-box' } }),
-e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'இது (Subtotal+Delivery) மேல calculate ஆகும். Razorpay gateway fee (~2.36%) இதுல இருந்து தானே கழியும் — அதனால இதை low-ஆ வைக்காதீங்க. Dealer commission ஒவ்வொரு Dealer-க்கும் Dealers tab-ல தனியா set பண்ணலாம்.')
+e('p', { style: { fontSize: 11, color: '#C9BBA8', marginBottom: 14 } }, 'இது Food Subtotal மேல மட்டும் calculate ஆகும் (Delivery fee தனி — கீழ பாருங்க). Dealer commission ஒவ்வொரு Dealer-க்கும் Dealers tab-ல தனியா set பண்ணலாம் (performance வச்சு 6.2%, 6.5%, 6.8% etc).')
+),
+e('div', { style: { borderTop: '1px solid #F3E9D8', paddingTop: 14, marginTop: 4 } },
+e('p', { style: { fontWeight: 700, fontSize: 14, marginBottom: 10 } }, '🏍️ Rider Delivery Charge Settings'),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Base Fare (₹) — Base KM வரை'),
+e('input', { type: 'number', value: riderBaseFare, onChange: function(ev){ setRiderBaseFare(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Base KM (எத்தனை km வரை Base fare)'),
+e('input', { type: 'number', value: riderBaseKm, onChange: function(ev){ setRiderBaseKm(ev.target.value); },
+step: '0.1',
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'கூடுதல் per-KM Rate (₹)'),
+e('input', { type: 'number', value: riderPerKmRate, onChange: function(ev){ setRiderPerKmRate(ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Rain Surge Multiplier (உதா: 1.15 = +15%)'),
+e('input', { type: 'number', value: riderRainMultiplier, onChange: function(ev){ setRiderRainMultiplier(ev.target.value); },
+step: '0.01',
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 6, boxSizing: 'border-box' } }),
+e('p', { style: { fontSize: 10, color: '#C9BBA8', marginBottom: 10 } }, 'Customer app, Delivery Address location வச்சு free weather API check பண்ணி rain-ஆ இருந்தா தானா இந்த multiplier apply பண்ணும்.'),
+e('label', { style: { fontSize: 12, color: '#8A6D3B' } }, 'Traffic Surge Multiplier (உதா: 1.15 = +15%)'),
+e('input', { type: 'number', value: riderTrafficMultiplier, onChange: function(ev){ setRiderTrafficMultiplier(ev.target.value); },
+step: '0.01',
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 4, marginBottom: 10, boxSizing: 'border-box' } }),
+e('div', { onClick: function(){ setTrafficSurgeActive(!trafficSurgeActive); },
+style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 10, borderRadius: 10, background: trafficSurgeActive ? '#FCE8E8' : '#F8F1E4', cursor: 'pointer', marginBottom: 8 } },
+e('span', { style: { fontSize: 12, fontWeight: 600, color: trafficSurgeActive ? '#C1442E' : '#8A6D3B' } }, trafficSurgeActive ? '🚦 Traffic Surge ON — இப்போ apply ஆகுது' : '🚦 Traffic Surge OFF'),
+e('span', { style: { fontSize: 20 } }, trafficSurgeActive ? '🔴' : '⚪')
+),
+e('p', { style: { fontSize: 10, color: '#C9BBA8', marginBottom: 4 } }, 'இதை Live traffic data தானா check பண்ண free API இல்லாததால், Admin/Dealer கண்ணா Traffic அதிகமா இருக்கும்போது இதை Manual-ஆ ON பண்ணணும், சரியானதும் OFF பண்ணணும்.')
 ),
 e('button', { onClick: save, disabled: saving,
-style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700 } }, saving ? 'Saving...' : '💾 Save Settings')
+style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700, marginTop: 10 } }, saving ? 'Saving...' : '💾 Save Settings')
 )
 );
 }
