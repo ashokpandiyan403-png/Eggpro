@@ -173,6 +173,7 @@ var [gpsBusy, setGpsBusy] = React.useState(false);
 var [gpsErr, setGpsErr] = React.useState("");
 var [orderId, setOrderId] = React.useState(null);
 var [orderStatus, setOrderStatus] = React.useState(null);
+var [receiptText, setReceiptText] = React.useState("");
 var [loading, setLoading] = React.useState(true);
 var [placing, setPlacing] = React.useState(false);
 var [gstRate, setGstRate] = React.useState(0);
@@ -383,8 +384,10 @@ var deliveryDealerShare = Math.round((deliveryMargin - deliveryAdminShare) * 100
 // Restaurant price-லேயே GST (food) already இருக்கு (5%) — அதனால Food subtotal-ல மறுபடி GST போடமாட்டோம்.
 // இந்த GST rate, Delivery/Service fee மேல மட்டும் (18% platform service tax மாதிரி) apply ஆகும்.
 var payableBeforeGst = cartTotal + deliveryFee;
+// GST customer-க்கு extra-ஆ காட்டாம, Food/Delivery price-லேயே already include ஆனதா கருதப்படுது.
+// Admin-ன் internal tax records/filing-க்காக மட்டும் இந்த amount தனியா கணக்கிடப்பட்டு order-ல் store ஆகும் — Customer bill-ல் காட்டப்படாது, extra charge ஆகாது.
 var gstAmount = Math.round(deliveryFee * (gstRate / 100) * 100) / 100;
-var grandTotal = payableBeforeGst + gstAmount;
+var grandTotal = payableBeforeGst;
 
 var [paymentDone, setPaymentDone] = React.useState(false);
 var [payBusy, setPayBusy] = React.useState(false);
@@ -505,6 +508,23 @@ supabase.from("payouts").insert(payoutRows).then(function() {
 setPlacing(false);
 setOrderId(newOrder.id);
 setOrderStatus("placed");
+// Receipt text தயார் பண்றோம் — Order confirm ஆனதும் Customer WhatsApp/SMS-ல் share பண்ணிக்கலாம் (company claim-க்கும் use ஆகும்)
+var lines = [];
+lines.push("🥚 Egg-Pro Receipt");
+lines.push("Order #" + newOrder.id + " — " + new Date().toLocaleString('en-IN'));
+lines.push("");
+Object.keys(cart).forEach(function(id) {
+var m = menu.filter(function(mm) { return mm.id === id; })[0];
+if (m) lines.push(m.name_ta + " x" + cart[id] + " — " + money(m.price * cart[id]));
+});
+lines.push("");
+lines.push("உணவு மொத்தம்: " + money(cartTotal));
+lines.push("டெலிவரி கட்டணம்: " + money(deliveryFee));
+lines.push("மொத்த விலை (Tax Included): " + money(grandTotal));
+lines.push("Delivery Address: " + addressText);
+lines.push("");
+lines.push("நன்றி — Egg-Pro");
+setReceiptText(lines.join("\n"));
 setCart({});
 setPaymentDone(false);
 setRzpPaymentId(null);
@@ -549,7 +569,16 @@ return e('p', { key: s.key, style: { fontWeight: done ? 700 : 400, color: done ?
 })
 ),
 (restaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: restaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
-e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16, background: '#1C1410', color: 'white', padding: 10, borderRadius: 12, border: 'none', width: '100%' } }, 'மெனுவுக்கு திரும்பு')
+receiptText ? e('button', { onClick: function(){
+if (navigator.share) {
+navigator.share({ title: 'Egg-Pro Receipt', text: receiptText }).catch(function(){});
+} else if (navigator.clipboard) {
+navigator.clipboard.writeText(receiptText).then(function(){ alert("Receipt Copy ஆயிடுச்சு! WhatsApp/SMS-ல் Paste பண்ணி அனுப்பலாம்."); });
+} else {
+alert(receiptText);
+}
+}, style: { marginTop: 12, background: '#25D366', color: 'white', padding: 12, borderRadius: 12, border: 'none', width: '100%', fontWeight: 700 } }, '📤 Receipt Share பண்ணுங்க (WhatsApp/SMS)') : null,
+e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 10, background: '#1C1410', color: 'white', padding: 10, borderRadius: 12, border: 'none', width: '100%' } }, 'மெனுவுக்கு திரும்பு')
 );
 }
 
@@ -588,6 +617,21 @@ e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16,
 );
 }
 
+var [selectedVendor, setSelectedVendor] = React.useState({});
+var BIZ_ICON = { restaurant: '🍽️', hotel: '🏨', motel: '🏩', chat_shop: '🍢', bakery: '🍞', tea_stall: '🫖', home_based: '🏠', thallu_vandi: '🛒' };
+
+var dishGroups = (function() {
+var groups = {};
+var order = [];
+menu.forEach(function(m) {
+var key = (m.name_en || m.name_ta || '').trim().toLowerCase();
+if (!key) return;
+if (!groups[key]) { groups[key] = { key: key, name_ta: m.name_ta, name_en: m.name_en, vendors: [] }; order.push(key); }
+var rest = restaurants.filter(function(r) { return r.id === m.restaurant_id; })[0];
+groups[key].vendors.push({ menuItemId: m.id, price: m.price, restaurantId: m.restaurant_id, restaurantName: rest ? (rest.name_ta || rest.name) : '?', businessType: rest ? (rest.business_type || 'restaurant') : 'restaurant' });
+});
+return order.map(function(k) { return groups[k]; });
+})();
 return e('div', { style: { minHeight: '100vh', paddingBottom: 220 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
 e('div', null,
@@ -616,28 +660,29 @@ e('div', { style: { padding: 16 } },
 loading ? e('p', null, 'Loading restaurants...') :
 (dealerLookupDone && !dealerId) ? e('p', { style: { color: '#C1442E', textAlign: 'center', padding: 24 } }, 'இந்த pincode (' + addressPincode + ')-க்கு இன்னும் Dealer இணைக்கப்படல. சிறிது நேரம் கழித்து try பண்ணுங்க.') :
 restaurants.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 24 } }, 'இந்த area-ல் Restaurants இல்லை') :
-restaurants.map(function(r) {
-var rItems = menu.filter(function(m) { return m.restaurant_id === r.id; });
-var inCart = cartRestaurantIds.indexOf(r.id) !== -1;
-return e('div', { key: r.id, style: { marginBottom: 16 } },
-e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
-e('p', { style: { fontSize: 15, fontWeight: 700, margin: 0 } }, '🏪 ' + (r.name_ta || r.name)),
-inCart ? e('span', { style: { fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: '#1C1410', color: '#E8A33D' } }, '🛒 Cart-ல் இருக்கு') : null
+dishGroups.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 24 } }, 'மெனு காலியா இருக்கு') :
+dishGroups.map(function(g) {
+var selId = selectedVendor[g.key] || g.vendors[0].menuItemId;
+var sel = g.vendors.filter(function(v) { return v.menuItemId === selId; })[0] || g.vendors[0];
+var hasMultiple = g.vendors.length > 1;
+return e('div', { key: g.key, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
+e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: hasMultiple ? 8 : 0 } },
+e('div', { style: { flex: 1, minWidth: 0 } },
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, g.name_ta),
+e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, g.name_en + ' · ' + money(sel.price))
 ),
-rItems.length === 0 ? e('p', { style: { color: '#C9BBA8', fontSize: 12, padding: '0 4px' } }, 'மெனு காலியா இருக்கு') :
-rItems.map(function(m) {
-return e('div', { key: m.id, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-e('div', null,
-e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, m.name_ta),
-e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, m.name_en + ' · ' + money(m.price))
+cart[sel.menuItemId] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 } },
+e('button', { onClick: function(){ removeItem(sel.menuItemId); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '−'),
+e('span', null, cart[sel.menuItemId]),
+e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '+')
+) : e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D', flexShrink: 0 } }, '+')
 ),
-cart[m.id] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-e('button', { onClick: function(){ removeItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '−'),
-e('span', null, cart[m.id]),
-e('button', { onClick: function(){ addItem(m.id); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '+')
-) : e('button', { onClick: function(){ addItem(m.id); }, style: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D' } }, '+')
-);
+hasMultiple ? e('select', { value: sel.menuItemId, onChange: function(ev){ setSelectedVendor(function(prev){ var n = Object.assign({}, prev); n[g.key] = ev.target.value; return n; }); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+g.vendors.map(function(v) {
+return e('option', { key: v.menuItemId, value: v.menuItemId }, (BIZ_ICON[v.businessType] || '🍽️') + ' ' + v.restaurantName + ' — ' + money(v.price));
 })
+) : e('p', { style: { fontSize: 11, color: '#C9BBA8', margin: '4px 0 0' } }, (BIZ_ICON[sel.businessType] || '🍽️') + ' ' + sel.restaurantName)
 );
 })
 ),
@@ -660,9 +705,7 @@ e('span', null, 'டெலிவரி கட்டணம்' + ((rainSurgeActiv
 ),
 (rainSurgeActive || trafficSurgeActive) ? e('p', { style: { fontSize: 10, color: '#C1442E', marginTop: -4, marginBottom: 8 } },
 '⚡ ' + [rainSurgeActive ? 'மழை' : null, trafficSurgeActive ? 'Traffic' : null].filter(Boolean).join(' + ') + ' காரணமா Delivery fee கொஞ்சம் அதிகமா இருக்கு') : null,
-gstRate > 0 ? e('div', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 8, display: 'flex', justifyContent: 'space-between' } },
-e('span', null, 'GST (' + gstRate + '% Delivery மேல)'), e('span', null, money(gstAmount))
-) : null,
+e('p', { style: { fontSize: 10, color: '#C9BBA8', marginBottom: 8 } }, '✅ எல்லா Taxes-உம் Include ஆகி இருக்கு — கூடுதல் charge இல்ல'),
 e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } },
 e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
 ),
