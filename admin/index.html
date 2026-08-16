@@ -255,6 +255,22 @@ if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { gst_registered: !current }) : r; }); });
 });
 }
+function updateBusinessType(restId, bt) {
+supabase.from("restaurants").update({ business_type: bt }).eq("id", restId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setList(function(prev) { return prev.map(function(r) { return r.id === restId ? Object.assign({}, r, { business_type: bt }) : r; }); });
+});
+}
+var BUSINESS_TYPES = [
+{ v: 'restaurant', l: '🍽️ Restaurant' },
+{ v: 'hotel', l: '🏨 Hotel' },
+{ v: 'motel', l: '🏩 Motel' },
+{ v: 'chat_shop', l: '🍢 Chat Shop' },
+{ v: 'bakery', l: '🍞 Bakery' },
+{ v: 'tea_stall', l: '🫖 Tea Stall' },
+{ v: 'home_based', l: '🏠 Home-based' },
+{ v: 'thallu_vandi', l: '🛒 Thallu Vandi' }
+];
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 return e('div', { style: { padding: 16 } },
 list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'Restaurants இல்லை') :
@@ -263,6 +279,11 @@ return e('div', { key: r.id, style: { background: 'white', borderRadius: 14, pad
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, r.name || r.name_ta || '(பெயர் இல்லை)'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, r.address || (r.latitude ? (r.latitude + ', ' + r.longitude) : 'Location இல்லை')),
 e('p', { style: { fontSize: 11, color: r.is_active === false ? '#C1442E' : '#5B7553', margin: '4px 0 0' } }, r.is_active === false ? '❌ Inactive' : '✅ Active'),
+e('label', { style: { fontSize: 10, color: '#8A6D3B', marginTop: 6, display: 'block' } }, 'Business Type'),
+e('select', { value: r.business_type || 'restaurant', onChange: function(ev){ updateBusinessType(r.id, ev.target.value); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginTop: 2, marginBottom: 4 } },
+BUSINESS_TYPES.map(function(bt) { return e('option', { key: bt.v, value: bt.v }, bt.l); })
+),
 e('p', { style: { fontSize: 10, fontWeight: 600, margin: '4px 0 0', color: r.fssai_number ? '#5B7553' : '#C1442E' } }, r.fssai_number ? ('✅ FSSAI: ' + r.fssai_number) : '⚠️ FSSAI verify ஆகல'),
 e('input', { type: 'text', defaultValue: r.fssai_number || "", placeholder: '🧾 FSSAI Number போடுங்க',
 onBlur: function(ev){ if (ev.target.value !== (r.fssai_number || "")) updateFssai(r.id, ev.target.value.trim()); },
