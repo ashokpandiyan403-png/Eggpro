@@ -737,7 +737,24 @@ supabase.auth.onAuthStateChange(function(event, sess) { setSession(sess); });
 if (!checked) return e('p', { style: { textAlign: 'center', padding: 40, color: '#8A6D3B' } }, 'Loading...');
 return session ? e(CustomerHome, { session: session }) : e(Login);
 }
-ReactDOM.createRoot(document.getElementById('root')).render(e(App));
+class ErrorBoundary extends React.Component {
+constructor(props) { super(props); this.state = { hasError: false, message: '' }; }
+static getDerivedStateFromError(err) { return { hasError: true, message: (err && err.message) ? err.message : String(err) }; }
+componentDidCatch(err, info) { console.error("App crashed:", err, info); }
+render() {
+if (this.state.hasError) {
+return e('div', { style: { padding: 24, textAlign: 'center' } },
+e('p', { style: { fontSize: 40, marginBottom: 12 } }, '⚠️'),
+e('p', { style: { fontWeight: 700, fontSize: 16, marginBottom: 8 } }, 'ஏதோ தப்பு நடந்துச்சு'),
+e('p', { style: { fontSize: 12, color: '#8A6D3B', marginBottom: 16, wordBreak: 'break-word' } }, this.state.message),
+e('button', { onClick: function(){ window.location.reload(); }, style: { padding: '10px 20px', borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700 } }, '🔄 மறுபடி Load பண்ணுங்க')
+);
+}
+return this.props.children;
+}
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(e(ErrorBoundary, null, e(App)));
 </script>
 </body>
 </html>
