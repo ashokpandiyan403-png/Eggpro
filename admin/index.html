@@ -608,8 +608,15 @@ e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
 dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name + (d.is_active === false ? ' (inactive)' : '')); })
 ),
 (pendingDealer[p.id] !== undefined && pendingDealer[p.id] !== (p.dealer_id || "")) ?
-e('button', { onClick: function(){ confirmAssign(p.id); },
-style: { width: '100%', padding: 8, borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontWeight: 700, fontSize: 12 } }, '✅ Confirm பண்ணி Assign பண்ணுங்க') :
+(function() {
+var oldDealer = dealers.filter(function(d){ return d.id === p.dealer_id; })[0];
+var newDealer = dealers.filter(function(d){ return d.id === pendingDealer[p.id]; })[0];
+var label = p.dealer_id
+? ('🔄 ' + (oldDealer ? oldDealer.name : '?') + ' → ' + (newDealer ? newDealer.name : 'யாருமில்லை') + ' மாத்த Confirm பண்ணுங்க')
+: ('✅ ' + (newDealer ? newDealer.name : '') + '-க்கு Assign பண்ண Confirm பண்ணுங்க');
+return e('button', { onClick: function(){ confirmAssign(p.id); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontWeight: 700, fontSize: 11 } }, label);
+})() :
 justSaved[p.id] ? e('p', { style: { fontSize: 11, color: '#5B7553', fontWeight: 600, textAlign: 'center', margin: 0 } }, '✅ Save ஆயிடுச்சு!') : null
 );
 }),
