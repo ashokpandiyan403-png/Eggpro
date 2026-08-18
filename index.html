@@ -174,6 +174,7 @@ var [gpsErr, setGpsErr] = React.useState("");
 var [orderId, setOrderId] = React.useState(null);
 var [orderStatus, setOrderStatus] = React.useState(null);
 var [receiptText, setReceiptText] = React.useState("");
+var [trackRestaurantLatLng, setTrackRestaurantLatLng] = React.useState(null);
 var [loading, setLoading] = React.useState(true);
 var [placing, setPlacing] = React.useState(false);
 var [gstRate, setGstRate] = React.useState(0);
@@ -525,6 +526,8 @@ lines.push("Delivery Address: " + addressText);
 lines.push("");
 lines.push("நன்றி — Egg-Pro");
 setReceiptText(lines.join("\n"));
+var firstRest = cartRestaurants[0];
+if (firstRest && firstRest.latitude) { setTrackRestaurantLatLng({ lat: firstRest.latitude, lng: firstRest.longitude }); }
 setCart({});
 setPaymentDone(false);
 setRzpPaymentId(null);
@@ -568,7 +571,7 @@ return e('p', { key: s.key, style: { fontWeight: done ? 700 : 400, color: done ?
 (done ? '✅ ' : '⚪ ') + s.ta);
 })
 ),
-(restaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: restaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
+(trackRestaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: trackRestaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
 receiptText ? e('button', { onClick: function(){
 if (navigator.share) {
 navigator.share({ title: 'Egg-Pro Receipt', text: receiptText }).catch(function(){});
@@ -664,25 +667,23 @@ dishGroups.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center
 dishGroups.map(function(g) {
 var selId = selectedVendor[g.key] || g.vendors[0].menuItemId;
 var sel = g.vendors.filter(function(v) { return v.menuItemId === selId; })[0] || g.vendors[0];
-var hasMultiple = g.vendors.length > 1;
 return e('div', { key: g.key, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
-e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: hasMultiple ? 8 : 0 } },
-e('div', { style: { flex: 1, minWidth: 0 } },
 e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, g.name_ta),
-e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: 0 } }, g.name_en + ' · ' + money(sel.price))
-),
-cart[sel.menuItemId] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 } },
-e('button', { onClick: function(){ removeItem(sel.menuItemId); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '−'),
-e('span', null, cart[sel.menuItemId]),
-e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { width: 28, height: 28, borderRadius: 14, border: 'none', background: '#FFF6E8' } }, '+')
-) : e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D', flexShrink: 0 } }, '+')
-),
-hasMultiple ? e('select', { value: sel.menuItemId, onChange: function(ev){ setSelectedVendor(function(prev){ var n = Object.assign({}, prev); n[g.key] = ev.target.value; return n; }); },
-style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: '0 0 8px' } }, g.name_en),
+e('select', { value: sel.menuItemId, onChange: function(ev){ setSelectedVendor(function(prev){ var n = Object.assign({}, prev); n[g.key] = ev.target.value; return n; }); },
+style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 10 } },
 g.vendors.map(function(v) {
 return e('option', { key: v.menuItemId, value: v.menuItemId }, (BIZ_ICON[v.businessType] || '🍽️') + ' ' + v.restaurantName + ' — ' + money(v.price));
 })
-) : e('p', { style: { fontSize: 11, color: '#C9BBA8', margin: '4px 0 0' } }, (BIZ_ICON[sel.businessType] || '🍽️') + ' ' + sel.restaurantName)
+),
+e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+e('p', { style: { fontWeight: 700, fontSize: 15, margin: 0 } }, money(sel.price)),
+cart[sel.menuItemId] ? e('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+e('button', { onClick: function(){ removeItem(sel.menuItemId); }, style: { width: 30, height: 30, borderRadius: 15, border: 'none', background: '#FFF6E8' } }, '−'),
+e('span', null, cart[sel.menuItemId]),
+e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { width: 30, height: 30, borderRadius: 15, border: 'none', background: '#FFF6E8' } }, '+')
+) : e('button', { onClick: function(){ addItem(sel.menuItemId); }, style: { padding: '8px 18px', borderRadius: 16, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700 } }, '+ Add')
+)
 );
 })
 ),
