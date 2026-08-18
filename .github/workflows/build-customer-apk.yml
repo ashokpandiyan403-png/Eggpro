@@ -34,23 +34,16 @@ jobs:
 
           npm install @capacitor/core@7 @capacitor/android@7
           npm install -D @capacitor/cli@7
-          npm install -D typescript
+          cat > capacitor.config.json <<'EOF'
+{
+  "appId": "com.eggpro.customer",
+  "appName": "EggPro Customer",
+  "webDir": "www"
+}
+EOF
 
-          cat > capacitor.config.ts <<'EOF'
-          import type { CapacitorConfig } from '@capacitor/cli';
-
-          const config: CapacitorConfig = {
-            appId: 'com.eggpro.customer',
-            appName: 'EggPro Customer',
-            webDir: 'www',
-            bundledWebRuntime: false
-          };
-
-          export default config;
-          EOF
-
-          npx cap add android
-          npx cap sync android
+npx cap add android
+npx cap sync android
 
       - name: Build APK
         run: |
