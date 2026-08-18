@@ -363,6 +363,7 @@ function DealersTab() {
 var [list, setList] = React.useState([]);
 var [restaurants, setRestaurants] = React.useState([]);
 var [riders, setRiders] = React.useState([]);
+var [pincodes, setPincodes] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 var [openId, setOpenId] = React.useState(null);
 var [openView, setOpenView] = React.useState('restaurants');
@@ -370,6 +371,7 @@ React.useEffect(function() {
 supabase.from("dealers").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
 supabase.from("restaurants").select("id,name,name_ta,dealer_id,is_active,address").then(function(res) { setRestaurants(res.data || []); });
 supabase.from("riders").select("id,name,dealer_id,is_available,address,phone").then(function(res) { setRiders(res.data || []); });
+supabase.from("pincodes").select("id,pincode,district,area_name,dealer_id").then(function(res) { setPincodes(res.data || []); });
 }, []);
 function updateDeposit(id, amount, status) {
 supabase.from("dealers").update({ deposit_amount: Number(amount) || 0, deposit_status: status }).eq("id", id).then(function(res) {
@@ -389,6 +391,7 @@ list.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', pad
 list.map(function(d) {
 var myRestaurants = restaurants.filter(function(r) { return r.dealer_id === d.id; });
 var myRiders = riders.filter(function(r) { return r.dealer_id === d.id; });
+var myPincodes = pincodes.filter(function(p) { return p.dealer_id === d.id; });
 var isOpen = openId === d.id;
 return e('div', { key: d.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 8 } },
 e('div', { onClick: function(){ setOpenId(isOpen ? null : d.id); setOpenView('restaurants'); }, style: { cursor: 'pointer' } },
@@ -413,7 +416,10 @@ style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1
 background: openView === 'riders' ? '#1C1410' : 'white', color: openView === 'riders' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '🏍️ Riders (' + myRiders.length + ')'),
 e('button', { onClick: function(){ setOpenView('deposit'); },
 style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
-background: openView === 'deposit' ? '#1C1410' : 'white', color: openView === 'deposit' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '💰 Deposit')
+background: openView === 'deposit' ? '#1C1410' : 'white', color: openView === 'deposit' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '💰 Deposit'),
+e('button', { onClick: function(){ setOpenView('pincodes'); },
+style: { flex: 1, padding: '7px 4px', fontSize: 11, borderRadius: 10, border: '1px solid #EEE0C8',
+background: openView === 'pincodes' ? '#1C1410' : 'white', color: openView === 'pincodes' ? '#E8A33D' : '#8A6D3B', fontWeight: 600 } }, '📍 Pincodes (' + myPincodes.length + ')')
 ),
 openView === 'deposit' ? e('div', { onClick: function(ev){ ev.stopPropagation(); } },
 e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, 'Deposit Amount (₹)'),
@@ -449,6 +455,14 @@ e('span', { style: { fontWeight: 600 } }, r.name + (r.phone ? (' · ' + r.phone)
 e('span', { style: { color: r.is_available ? '#5B7553' : '#C9BBA8' } }, r.is_available ? '🟢' : '⚪')
 ),
 e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'Address இல்லை')
+);
+})) : null,
+openView === 'pincodes' ?
+(myPincodes.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Pincode இணைக்கப்படல — 📍 Pincodes tab-ல் இருந்து assign பண்ணுங்க') :
+myPincodes.map(function(p) {
+return e('div', { key: p.id, style: { fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
+e('span', { style: { fontWeight: 600 } }, p.pincode),
+e('span', { style: { color: '#8A6D3B' } }, ' — ' + (p.area_name || '') + (p.district ? (', ' + p.district) : ''))
 );
 })) : null
 ) : null
@@ -500,6 +514,15 @@ return prev.map(function(p) { return p.id === pincodeRowId ? Object.assign({}, p
 }
 
 var [showAdd, setShowAdd] = React.useState(false);
+var [pendingDealer, setPendingDealer] = React.useState({});
+var [justSaved, setJustSaved] = React.useState({});
+function confirmAssign(pincodeRowId) {
+var val = pendingDealer[pincodeRowId];
+assignDealer(pincodeRowId, val);
+setJustSaved(function(prev){ var n = Object.assign({}, prev); n[pincodeRowId] = true; return n; });
+setPendingDealer(function(prev){ var n = Object.assign({}, prev); delete n[pincodeRowId]; return n; });
+setTimeout(function(){ setJustSaved(function(prev){ var n = Object.assign({}, prev); delete n[pincodeRowId]; return n; }); }, 2500);
+}
 var [newPincode, setNewPincode] = React.useState("");
 var [newDistrict, setNewDistrict] = React.useState("");
 var [newArea, setNewArea] = React.useState("");
@@ -578,11 +601,16 @@ e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, (p.area_name ||
 ),
 e('p', { style: { fontSize: 11, fontWeight: 600, color: p.is_connected ? '#5B7553' : '#C1442E', margin: 0 } }, p.is_connected ? '✅ Connected' : '⚪ Not Connected')
 ),
-e('select', { value: p.dealer_id || "", onChange: function(ev){ assignDealer(p.id, ev.target.value); },
-style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12 } },
+e('select', { value: (pendingDealer[p.id] !== undefined ? pendingDealer[p.id] : (p.dealer_id || "")),
+onChange: function(ev){ setPendingDealer(function(prev){ var n = Object.assign({}, prev); n[p.id] = ev.target.value; return n; }); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 6 } },
 e('option', { value: "" }, 'Dealer assign பண்ணுங்க'),
 dealers.map(function(d) { return e('option', { key: d.id, value: d.id }, d.name + (d.is_active === false ? ' (inactive)' : '')); })
-)
+),
+(pendingDealer[p.id] !== undefined && pendingDealer[p.id] !== (p.dealer_id || "")) ?
+e('button', { onClick: function(){ confirmAssign(p.id); },
+style: { width: '100%', padding: 8, borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontWeight: 700, fontSize: 12 } }, '✅ Confirm பண்ணி Assign பண்ணுங்க') :
+justSaved[p.id] ? e('p', { style: { fontSize: 11, color: '#5B7553', fontWeight: 600, textAlign: 'center', margin: 0 } }, '✅ Save ஆயிடுச்சு!') : null
 );
 }),
 filtered.length > PAGE_SIZE ? e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 } },
