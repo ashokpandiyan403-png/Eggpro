@@ -668,8 +668,9 @@ dishGroups.map(function(g) {
 var selId = selectedVendor[g.key] || g.vendors[0].menuItemId;
 var sel = g.vendors.filter(function(v) { return v.menuItemId === selId; })[0] || g.vendors[0];
 return e('div', { key: g.key, style: { background: 'white', borderRadius: 16, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
-e('p', { style: { fontWeight: 600, fontSize: 14, margin: 0 } }, g.name_ta),
-e('p', { style: { fontSize: 12, color: '#8A6D3B', margin: '0 0 8px' } }, g.name_en),
+e('p', { style: { fontWeight: 600, fontSize: 14, margin: '0 0 8px' } },
+g.name_ta + (g.name_en && g.name_en !== g.name_ta ? (' / ' + g.name_en) : '')
+),
 e('select', { value: sel.menuItemId, onChange: function(ev){ setSelectedVendor(function(prev){ var n = Object.assign({}, prev); n[g.key] = ev.target.value; return n; }); },
 style: { width: '100%', padding: 10, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, marginBottom: 10 } },
 g.vendors.map(function(v) {
