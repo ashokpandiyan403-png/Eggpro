@@ -367,11 +367,22 @@ var [pincodes, setPincodes] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 var [openId, setOpenId] = React.useState(null);
 var [openView, setOpenView] = React.useState('restaurants');
+function loadPincodes() {
+var allRows = [];
+function fetchChunk(from) {
+supabase.from("pincodes").select("id,pincode,district,area_name,dealer_id").not("dealer_id", "is", null).range(from, from + 999).then(function(res) {
+var rows = res.data || [];
+allRows = allRows.concat(rows);
+if (rows.length === 1000) { fetchChunk(from + 1000); } else { setPincodes(allRows); }
+});
+}
+fetchChunk(0);
+}
 React.useEffect(function() {
 supabase.from("dealers").select("*").then(function(res) { setList(res.data || []); setLoading(false); });
 supabase.from("restaurants").select("id,name,name_ta,dealer_id,is_active,address").then(function(res) { setRestaurants(res.data || []); });
 supabase.from("riders").select("id,name,dealer_id,is_available,address,phone").then(function(res) { setRiders(res.data || []); });
-supabase.from("pincodes").select("id,pincode,district,area_name,dealer_id").then(function(res) { setPincodes(res.data || []); });
+loadPincodes();
 }, []);
 function updateDeposit(id, amount, status) {
 supabase.from("dealers").update({ deposit_amount: Number(amount) || 0, deposit_status: status }).eq("id", id).then(function(res) {
@@ -383,6 +394,13 @@ function updateCommission(id, rate) {
 supabase.from("dealers").update({ commission_rate: Number(rate) || 0 }).eq("id", id).then(function(res) {
 if (res.error) { alert("Error: " + res.error.message); return; }
 setList(function(prev) { return prev.map(function(x) { return x.id === id ? Object.assign({}, x, { commission_rate: Number(rate) || 0 }) : x; }); });
+});
+}
+function unassignPincode(pincodeRowId) {
+if (!confirm("இந்த Pincode-ஐ இந்த Dealer-ல் இருந்து Remove பண்ணுறீங்களா?")) return;
+supabase.from("pincodes").update({ dealer_id: null, is_connected: false }).eq("id", pincodeRowId).then(function(res) {
+if (res.error) { alert("Error: " + res.error.message); return; }
+setPincodes(function(prev) { return prev.filter(function(p) { return p.id !== pincodeRowId; }); });
 });
 }
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
@@ -460,9 +478,13 @@ e('p', { style: { fontSize: 10, color: '#8A6D3B', margin: 0 } }, r.address || 'A
 openView === 'pincodes' ?
 (myPincodes.length === 0 ? e('p', { style: { fontSize: 11, color: '#C9BBA8' } }, 'இன்னும் Pincode இணைக்கப்படல — 📍 Pincodes tab-ல் இருந்து assign பண்ணுங்க') :
 myPincodes.map(function(p) {
-return e('div', { key: p.id, style: { fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
+return e('div', { key: p.id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, margin: '6px 0', paddingBottom: 6, borderBottom: '1px solid #F8F1E4' } },
+e('div', null,
 e('span', { style: { fontWeight: 600 } }, p.pincode),
 e('span', { style: { color: '#8A6D3B' } }, ' — ' + (p.area_name || '') + (p.district ? (', ' + p.district) : ''))
+),
+e('button', { onClick: function(){ unassignPincode(p.id); },
+style: { fontSize: 10, padding: '4px 10px', borderRadius: 8, border: '1px solid #EEE0C8', background: 'white', color: '#C1442E' } }, '✕ Remove')
 );
 })) : null
 ) : null
