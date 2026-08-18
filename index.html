@@ -186,6 +186,7 @@ var [riderRainMultiplier, setRiderRainMultiplier] = React.useState(1.15);
 var [riderTrafficMultiplier, setRiderTrafficMultiplier] = React.useState(1.15);
 var [trafficSurgeActive, setTrafficSurgeActive] = React.useState(false);
 var [rainSurgeActive, setRainSurgeActive] = React.useState(false);
+var [selectedVendor, setSelectedVendor] = React.useState({});
 
 React.useEffect(function() {
 supabase.from("app_settings").select("*").eq("id", 1).maybeSingle().then(function(res) {
@@ -620,7 +621,6 @@ e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16,
 );
 }
 
-var [selectedVendor, setSelectedVendor] = React.useState({});
 var BIZ_ICON = { restaurant: '🍽️', hotel: '🏨', motel: '🏩', chat_shop: '🍢', bakery: '🍞', tea_stall: '🫖', home_based: '🏠', thallu_vandi: '🛒' };
 
 var dishGroups = (function() {
