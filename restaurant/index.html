@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Egg-Pro — Restaurant</title>
+<title>Egg-Treat — Restaurant</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -81,7 +81,7 @@ e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background:
 e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
 e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#E8A33D', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, '🏪'),
 e('div', null,
-e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro Restaurant'),
+e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Treat Restaurant'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, 'Login')
 )
 ),
@@ -196,18 +196,20 @@ e('button', { onClick: function(){ removeItem(m); }, style: { flex: 1, fontSize:
 
 function OrdersTab(props) {
 var restaurantId = props.restaurantId;
-var [orders, setOrders] = React.useState([]);
+var [items, setItems] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
 
 function load() {
-supabase.from("orders").select("*").eq("restaurant_id", restaurantId).order("created_at", { ascending: false }).then(function(res) {
-setOrders(res.data || []); setLoading(false);
+supabase.from("order_items").select("id, order_id, name_ta, name_en, unit_price, quantity, orders(id, status, created_at)")
+.eq("restaurant_id", restaurantId).then(function(res) {
+setItems(res.data || []); setLoading(false);
 });
 }
 React.useEffect(function() {
 load();
 var channel = supabase.channel('restaurant-orders-' + restaurantId)
-.on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: 'restaurant_id=eq.' + restaurantId }, function() { load(); }).subscribe();
+.on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, function() { load(); })
+.on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: 'restaurant_id=eq.' + restaurantId }, function() { load(); }).subscribe();
 return function() { supabase.removeChannel(channel); };
 }, []);
 
@@ -217,22 +219,38 @@ if (res.error) alert("Error: " + res.error.message);
 });
 }
 
-var active = orders.filter(function(o) { return o.status !== 'delivered' && o.status !== 'cancelled'; });
+// order_id-வாரியா group பண்றோம் — ஒரே order-ல் இந்த Restaurant-ன் items மட்டும்
+var grouped = {};
+var orderIds = [];
+items.forEach(function(it) {
+if (!it.orders) return;
+if (!grouped[it.order_id]) { grouped[it.order_id] = { order: it.orders, lines: [] }; orderIds.push(it.order_id); }
+grouped[it.order_id].lines.push(it);
+});
+var activeOrders = orderIds.map(function(id) { return grouped[id]; })
+.filter(function(g) { return g.order.status !== 'delivered' && g.order.status !== 'cancelled'; })
+.sort(function(a, b) { return new Date(b.order.created_at) - new Date(a.order.created_at); });
+
 var NEXT_STATUS = { placed: 'accepted', accepted: 'preparing', preparing: 'pickup' };
 var NEXT_LABEL = { placed: '✅ ஏற்றுக்கொள்ள', accepted: '👨‍🍳 தயார் செய்ய ஆரம்பிக்க', preparing: '📦 Pickup-க்கு தயார்' };
 
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 
 return e('div', { style: { padding: 16 } },
-active.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'புதிய Orders இல்லை') :
-active.map(function(o) {
+activeOrders.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'புதிய Orders இல்லை') :
+activeOrders.map(function(g) {
+var o = g.order;
+var myTotal = g.lines.reduce(function(s, l) { return s + (l.unit_price * l.quantity); }, 0);
 return e('div', { key: o.id, style: { background: 'white', borderRadius: 14, padding: 12, border: '1px solid #EEE0C8', marginBottom: 10 } },
 e('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
 e('p', { style: { fontSize: 13, fontWeight: 700, margin: 0 } }, '#' + shortId(o.id)),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, fmtDate(o.created_at))
 ),
 e('p', { style: { fontSize: 12, color: '#5B7553', fontWeight: 600, margin: '0 0 8px' } }, STATUS_TA[o.status] || o.status),
-e('p', { style: { fontSize: 14, fontWeight: 700, margin: '0 0 10px' } }, money(o.subtotal)),
+g.lines.map(function(l) {
+return e('p', { key: l.id, style: { fontSize: 12, color: '#4A3B2C', margin: '2px 0' } }, l.name_ta + ' x' + l.quantity + ' — ' + money(l.unit_price * l.quantity));
+}),
+e('p', { style: { fontSize: 14, fontWeight: 700, margin: '8px 0 10px', borderTop: '1px dashed #EEE0C8', paddingTop: 8 } }, 'உங்க பங்கு: ' + money(myTotal)),
 NEXT_STATUS[o.status] ? e('button', { onClick: function(){ updateStatus(o.id, NEXT_STATUS[o.status]); },
 style: { width: '100%', background: '#1C1410', color: '#E8A33D', padding: 10, borderRadius: 10, border: 'none', fontWeight: 600, fontSize: 13 } },
 NEXT_LABEL[o.status]) : e('p', { style: { fontSize: 12, color: '#8A6D3B', textAlign: 'center' } }, 'Rider-க்காக காத்திருக்கு')
@@ -247,7 +265,7 @@ var restaurantId = props.restaurantId;
 return e('div', { style: { minHeight: '100vh', paddingBottom: 70 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
 e('div', null,
-e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🏪 Egg-Pro Restaurant'),
+e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🏪 Egg-Treat Restaurant'),
 e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, tab === 'orders' ? 'Orders' : 'Menu')
 ),
 e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋')
