@@ -186,6 +186,9 @@ var [riderRainMultiplier, setRiderRainMultiplier] = React.useState(1.15);
 var [riderTrafficMultiplier, setRiderTrafficMultiplier] = React.useState(1.15);
 var [trafficSurgeActive, setTrafficSurgeActive] = React.useState(false);
 var [rainSurgeActive, setRainSurgeActive] = React.useState(false);
+var [manualPincode, setManualPincode] = React.useState("");
+var [mapsLinkInput, setMapsLinkInput] = React.useState("");
+var [typedAddress, setTypedAddress] = React.useState("");
 var [selectedVendor, setSelectedVendor] = React.useState({});
 
 React.useEffect(function() {
@@ -212,18 +215,12 @@ setRainSurgeActive(precip > 0);
 }).catch(function() { /* weather check fail ஆனா, rain surge இல்லாம proceed ஆகும் */ });
 }, [addressLatLng]);
 
-function captureLocation(opts) {
-opts = opts || {};
-var isNew = !!opts.isNew;
-if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
+function finalizeAddress(lat, lng, isNew, displayTextOverride) {
 setGpsBusy(true); setGpsErr("");
-
-function onSuccess(pos) {
-var lat = pos.coords.latitude, lng = pos.coords.longitude;
 fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lng)
 .then(function(r) { return r.json(); })
 .then(function(geo) {
-var text = (geo && geo.display_name) ? geo.display_name : (lat.toFixed(5) + ", " + lng.toFixed(5));
+var text = displayTextOverride || ((geo && geo.display_name) ? geo.display_name : (lat.toFixed(5) + ", " + lng.toFixed(5)));
 var pin = (geo && geo.address && geo.address.postcode) ? geo.address.postcode : null;
 var payload = { customer_id: session.user.id, label: isNew ? (newLabel || "Home") : "Home", full_address: text, latitude: lat, longitude: lng, pincode: pin };
 if (isNew) { payload.recipient_name = newRecipientName || null; payload.recipient_phone = newRecipientPhone || null; }
@@ -240,13 +237,40 @@ setAddressId(saved.id);
 setAddressText(text);
 setAddressLatLng({ lat: lat, lng: lng });
 setAddressPincode(pin);
-if (isNew) { setAddrFormOpen(false); setNewLabel("Home"); setNewRecipientName(""); setNewRecipientPhone(""); setScreen('menu'); }
+if (isNew) { setAddrFormOpen(false); setNewLabel("Home"); setNewRecipientName(""); setNewRecipientPhone(""); setMapsLinkInput(""); setTypedAddress(""); setScreen('menu'); }
 }
 });
 }).catch(function() {
-setGpsBusy(false); setGpsErr("Address தேட முடியல, ஆனா location கிடைச்சது");
-setAddressLatLng({ lat: lat, lng: lng });
+setGpsBusy(false); setGpsErr("Address தேட முடியல");
 });
+}
+
+function useMapsLink() {
+var m = mapsLinkInput.match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+if (!m) { setGpsErr("Link-ல் Location கிடைக்கல — WhatsApp-ல் 'Send Location' பண்ணி Copy பண்ண link-ஐ paste பண்ணுங்க"); return; }
+finalizeAddress(parseFloat(m[1]), parseFloat(m[2]), true, null);
+}
+
+function useTypedAddress() {
+if (!typedAddress.trim()) return;
+setGpsBusy(true); setGpsErr("");
+fetch("https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&limit=1&addressdetails=1&q=" + encodeURIComponent(typedAddress))
+.then(function(r) { return r.json(); })
+.then(function(results) {
+if (!results || results.length === 0) { setGpsBusy(false); setGpsErr("இந்த address கிடைக்கல, வேற மாதிரி type பண்ணி பாருங்க"); return; }
+var res0 = results[0];
+finalizeAddress(parseFloat(res0.lat), parseFloat(res0.lon), true, res0.display_name);
+}).catch(function() { setGpsBusy(false); setGpsErr("Search fail ஆயிடுச்சு"); });
+}
+
+function captureLocation(opts) {
+opts = opts || {};
+var isNew = !!opts.isNew;
+if (!navigator.geolocation) { setGpsErr("இந்த browser-ல் Location ஆதரவு இல்லை"); return; }
+setGpsBusy(true); setGpsErr("");
+
+function onSuccess(pos) {
+finalizeAddress(pos.coords.latitude, pos.coords.longitude, isNew, null);
 }
 
 function onError(err) {
@@ -586,6 +610,23 @@ e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 10,
 );
 }
 
+function saveManualPincode() {
+if (!/^[0-9]{6}$/.test(manualPincode.trim())) { alert("6 digit pincode சரியா போடுங்க"); return; }
+var payload = { customer_id: session.user.id, label: newLabel || "Home", full_address: "Pincode: " + manualPincode.trim() + " (manually entered)", pincode: manualPincode.trim(), recipient_name: newRecipientName || null, recipient_phone: newRecipientPhone || null };
+supabase.from("addresses").insert(payload).select().then(function(res) {
+if (res.error) { alert(res.error.message); return; }
+if (res.data && res.data[0]) {
+var saved = res.data[0];
+setAddresses(function(prev) { return prev.concat([saved]); });
+setAddressId(saved.id);
+setAddressText(saved.full_address);
+setAddressLatLng(null);
+setAddressPincode(saved.pincode);
+setAddrFormOpen(false); setNewLabel("Home"); setNewRecipientName(""); setNewRecipientPhone(""); setManualPincode("");
+setScreen('menu');
+}
+});
+}
 if (screen === 'addresses') {
 return e('div', { style: { padding: 16, paddingBottom: 40 } },
 e('p', { style: { fontWeight: 'bold', fontSize: 16, marginBottom: 12 } }, '📍 Delivery Addresses'),
@@ -615,6 +656,25 @@ gpsErr ? e('p', { style: { fontSize: 11, color: '#C1442E', marginBottom: 8 } }, 
 e('button', { onClick: function(){ captureLocation({ isNew: true }); }, disabled: gpsBusy,
 style: { width: '100%', padding: 12, borderRadius: 12, border: 'none', background: '#1C1410', color: '#E8A33D', fontWeight: 700, marginBottom: 8 } },
 gpsBusy ? 'Location எடுக்குது...' : '📍 இப்போ இருக்குற Location-ஐ இந்த Address-ஆ Save பண்ணுங்க'),
+e('div', { style: { display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0' } },
+e('div', { style: { flex: 1, height: 1, background: '#EEE0C8' } }),
+e('span', { style: { fontSize: 11, color: '#C9BBA8' } }, 'அல்லது'),
+e('div', { style: { flex: 1, height: 1, background: '#EEE0C8' } })
+),
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, '🔗 WhatsApp-ல் Location Share பண்ணி Copy பண்ண Link-ஐ Paste பண்ணுங்க'),
+e('div', { style: { display: 'flex', gap: 6, marginTop: 4, marginBottom: 10 } },
+e('input', { type: 'text', value: mapsLinkInput, placeholder: 'https://maps.google.com/?q=...',
+onChange: function(ev){ setMapsLinkInput(ev.target.value); },
+style: { flex: 1, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
+e('button', { onClick: useMapsLink, disabled: gpsBusy, style: { padding: '8px 14px', borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontWeight: 700, fontSize: 12 } }, 'Use')
+),
+e('label', { style: { fontSize: 11, color: '#8A6D3B' } }, '✍️ இல்ல, Address-ஐ Type பண்ணுங்க'),
+e('div', { style: { display: 'flex', gap: 6, marginTop: 4, marginBottom: 8 } },
+e('input', { type: 'text', value: typedAddress, placeholder: 'Full Address / Area, Town',
+onChange: function(ev){ setTypedAddress(ev.target.value); },
+style: { flex: 1, padding: 8, borderRadius: 10, border: '1px solid #EEE0C8', fontSize: 12, boxSizing: 'border-box' } }),
+e('button', { onClick: useTypedAddress, disabled: gpsBusy, style: { padding: '8px 14px', borderRadius: 10, border: 'none', background: '#5B7553', color: 'white', fontWeight: 700, fontSize: 12 } }, 'Find')
+),
 e('button', { onClick: function(){ setAddrFormOpen(false); }, style: { width: '100%', padding: 8, borderRadius: 10, border: 'none', background: 'none', color: '#8A6D3B', fontSize: 12 } }, 'Cancel')
 ),
 e('button', { onClick: function(){ setScreen('menu'); }, style: { marginTop: 16, background: 'white', color: '#1C1410', padding: 10, borderRadius: 12, border: '1px solid #EEE0C8', width: '100%' } }, '⬅ மெனுவுக்கு திரும்பு')
