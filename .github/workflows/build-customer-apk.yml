@@ -34,6 +34,7 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core@7 @capacitor/android@7
+@capacitor/geolocation@7
           npm install -D @capacitor/cli@7
 
       - name: Create Capacitor config
