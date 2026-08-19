@@ -49,6 +49,79 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Install Android permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+
+          permissions = '''
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.INTERNET" />
+          '''
+
+          if "android.permission.ACCESS_FINE_LOCATION" not in s:
+              s = s.replace("<manifest", "<manifest", 1)
+              pos = s.find(">")
+              s = s[:pos+1] + permissions + s[pos+1:]
+
+          p.write_text(s)
+          PY
+
+      - name: Create EggPro launcher icon
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+
+          cat > android/app/src/main/res/drawable/eggpro_icon.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M54,8 C32,8 20,31 20,51 C20,77 34,96 54,96 C74,96 88,77 88,51 C88,31 76,8 54,8 Z"/>
+
+              <path
+                  android:fillColor="#E8A33D"
+                  android:pathData="M54,30 C43,30 36,39 36,50 C36,61 43,68 54,68 C65,68 72,61 72,50 C72,39 65,30 54,30 Z"/>
+
+              <path
+                  android:fillColor="#C1442E"
+                  android:pathData="M28,75 C35,83 44,87 54,87 C64,87 73,83 80,75 C73,91 64,98 54,98 C44,98 35,91 28,75 Z"/>
+          </vector>
+          EOF
+
+      - name: Set launcher icon
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+
+          s = s.replace(
+              'android:icon="@mipmap/ic_launcher"',
+              'android:icon="@drawable/eggpro_icon"'
+          )
+
+          s = s.replace(
+              'android:icon="@mipmap/ic_launcher"',
+              'android:icon="@drawable/eggpro_icon"'
+          )
+
+          p.write_text(s)
+          PY
+
       - name: Sync Android
         run: npx cap sync android
 
@@ -56,6 +129,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
+          ./gradlew clean
           ./gradlew assembleDebug
 
       - name: Upload APK
