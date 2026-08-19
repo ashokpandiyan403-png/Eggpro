@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Egg-Treat — Policies</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+Thambi+2:wght@500;600;700&display=swap');
+* { box-sizing: border-box; }
+body { font-family: 'Poppins', sans-serif; background: #FFF6E8; color: #3A2E22; margin: 0; padding: 0; }
+.header { background: #1C1410; color: white; padding: 20px 16px; }
+.header h1 { font-family: 'Baloo Thambi 2', sans-serif; color: #E8A33D; margin: 0; font-size: 20px; }
+.tabs { display: flex; gap: 6px; padding: 12px; overflow-x: auto; background: white; position: sticky; top: 0; }
+.tab { padding: 8px 14px; border-radius: 20px; border: 1px solid #EEE0C8; background: white; color: #8A6D3B; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.tab.active { background: #1C1410; color: #E8A33D; border-color: #1C1410; }
+.content { padding: 18px 16px 60px; max-width: 720px; margin: 0 auto; }
+.content h2 { font-size: 17px; color: #1C1410; margin-top: 22px; margin-bottom: 8px; }
+.content p, .content li { font-size: 14px; line-height: 1.6; color: #4A3B2C; }
+.content ul { padding-left: 20px; }
+.updated { font-size: 11px; color: #C9BBA8; margin-bottom: 16px; }
+.box { background: white; border: 1px solid #EEE0C8; border-radius: 14px; padding: 16px; margin-top: 14px; }
+.note { background: #FFF0D9; border: 1px solid #E8A33D; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #8A6D3B; margin-top: 14px; }
+.placeholder { background: #FCE8E8; color: #C1442E; padding: 1px 4px; border-radius: 4px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="header"><h1>🥚 Egg-Treat — Policies</h1></div>
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<script>
+var sections = {
+terms: {
+label: "📜 Terms",
+title: "Terms & Conditions",
+body:
+"<p class='updated'>Last updated: <span class='placeholder'>[தேதி போடுங்க]</span></p>" +
+"<p>Egg-Treat ('நாங்க', 'Platform') பயன்படுத்தறதுக்கு முன்ன இந்த Terms-ஐ படிச்சு ஒப்புக்கணும். Egg-Treat என்பது Customers-க்கும் local Restaurants/Home-kitchens-க்கும் இடையில் food order/delivery-ஐ facilitate பண்ற ஒரு marketplace platform. உணவை நாங்க தயார் பண்றதில்ல — அது Restaurant partner-ன் பொறுப்பு.</p>" +
+"<h2>1. Account</h2><p>Order பண்ண Phone number/Email வச்சு account create பண்ணணும். உங்க login details-ஐ பாதுகாக்கிற பொறுப்பு உங்களுடையது.</p>" +
+"<h2>2. Orders & Pricing</h2><p>Menu prices, Delivery fee, GST/Tax எல்லாம் checkout-ல் தெளிவா காட்டப்படும். Order confirm பண்ணும்போது நீங்க இந்த amount-க்கு ஒப்புக்கறீங்க.</p>" +
+"<h2>3. Delivery</h2><p>Delivery time estimate மட்டும் — traffic/weather காரணமா தாமதம் ஆகலாம். Rider-ன் பாதுகாப்பு, திறமையான delivery-க்கு நாங்க கவனிப்போம், ஆனா precise timing guarantee பண்ண முடியாது.</p>" +
+"<h2>4. Cancellation</h2><p>Restaurant order accept பண்றதுக்கு முன்ன cancel பண்ணலாம். Accept ஆனப்புறம் cancel பண்ணா, ஏற்கனவே தயாரிச்ச உணவுக்கான Refund கிடைக்காது (Refund Policy பாருங்க).</p>" +
+"<h2>5. Prohibited Use</h2><p>Fraud, fake orders, platform-ஐ தவறா பயன்படுத்தறது — இவை காரணமா account suspend ஆகலாம்.</p>" +
+"<h2>6. Liability</h2><p>Food quality/hygiene-க்கு Restaurant partner பொறுப்பு. Delivery-ல ஏற்படும் accident/damage-க்கு Rider/Insurance-வழியா தீர்வு பார்க்கப்படும்.</p>" +
+"<h2>7. Changes</h2><p>இந்த Terms-ஐ நாங்க update பண்ணலாம். புது Terms Effective ஆனதும் app-ல் notify பண்ணப்படும்.</p>" +
+"<div class='note'>⚠️ இது ஒரு starter-template. Business scale ஆகும்போது, ஒரு lawyer-ஐ வச்சு இதை review பண்ணி customize பண்ணிக்கோங்க.</div>"
+},
+privacy: {
+label: "🔒 Privacy",
+title: "Privacy Policy",
+body:
+"<p class='updated'>Last updated: <span class='placeholder'>[தேதி போடுங்க]</span></p>" +
+"<h2>1. நாங்க என்ன Data எடுக்கிறோம்</h2><ul>" +
+"<li>பெயர், Phone number, Email</li>" +
+"<li>Delivery Address, GPS Location (order place பண்ணும்போது, Rider delivery பண்ணும்போது)</li>" +
+"<li>Order history, Payment status (Payment details Razorpay-வழியா secure-ஆ handle ஆகும், நாங்க Card/UPI details store பண்ண மாட்டோம்)</li>" +
+"</ul>" +
+"<h2>2. எதுக்கு பயன்படுத்துறோம்</h2><ul>" +
+"<li>Order deliver பண்ண, Restaurant/Rider-ஐ assign பண்ண</li>" +
+"<li>Support, Order updates அனுப்ப</li>" +
+"<li>Service மேம்படுத்த (analytics)</li>" +
+"</ul>" +
+"<h2>3. யாருடன் Share பண்றோம்</h2><p>உங்க Order-க்கான Restaurant, Rider-க்கு தேவையான தகவல் (பெயர், Address, Phone) மட்டும் share ஆகும். Marketing-க்கு மூன்றாம் நபருக்கு data விற்க மாட்டோம்.</p>" +
+"<h2>4. Location Data</h2><p>GPS Location, delivery accuracy-க்காக மட்டும் எடுக்கப்படும். App பயன்படுத்தாதப்போ location track பண்ணப்படாது.</p>" +
+"<h2>5. Data Security</h2><p>Supabase (secure database) மூலமா data store ஆகும். Password-கள் encrypt ஆகி இருக்கும்.</p>" +
+"<h2>6. உங்க Rights</h2><p>உங்க Data-ஐ பார்க்க, மாத்த, delete பண்ண கேட்கலாம் — கீழ Grievance Officer-ஐ தொடர்பு கொள்ளுங்க.</p>" +
+"<div class='note'>⚠️ India-ன் DPDP Act 2023 (Digital Personal Data Protection)-க்கு ஏத்தபடி formal ஆக்க, ஒரு lawyer-ஐ consult பண்ணுங்க.</div>"
+},
+refund: {
+label: "💸 Refund",
+title: "Refund & Cancellation Policy",
+body:
+"<p class='updated'>Last updated: <span class='placeholder'>[தேதி போடுங்க]</span></p>" +
+"<h2>1. Order Cancel — Restaurant Accept பண்றதுக்கு முன்ன</h2><p>முழு Refund (Delivery fee உட்பட) — 3-5 வேலை நாட்களில் original payment method-க்கு திரும்பும்.</p>" +
+"<h2>2. Order Cancel — Restaurant Accept பண்ணின பிறகு</h2><p>உணவு தயாராக ஆரம்பிச்சதால Refund கிடைக்காது. தவறான/பழுதான Item வந்தா, கீழ 'Wrong/Damaged Item' பாருங்க.</p>" +
+"<h2>3. Wrong / Missing / Damaged Item</h2><p>Order கிடைச்ச 30 நிமிடத்துக்குள் Photo-உடன் Support-க்கு report பண்ணுங்க. Verify ஆனா, முழு/பகுதி Refund அல்லது Replacement தரப்படும்.</p>" +
+"<h2>4. Delivery ஆகாத Order</h2><p>Rider assign ஆகி 45 நிமிடத்துக்கு மேல delivery ஆகலனா, முழு Refund கேட்கலாம்.</p>" +
+"<h2>5. Refund Timeline</h2><p>Approved Refund, 3-7 வேலை நாட்களில் Bank/UPI-க்கு process ஆகும் (Bank processing time-ஐ பொறுத்து மாறலாம்).</p>" +
+"<h2>6. Non-Refundable</h2><p>Order சரியா தயாரிச்சு, சரியான நேரத்துல delivery ஆகி, Customer 'taste பிடிக்கல' என்ற காரணத்துக்கு Refund கிடையாது.</p>"
+},
+grievance: {
+label: "🧑‍⚖️ Grievance",
+title: "Grievance Officer",
+body:
+"<p>Consumer Protection (E-Commerce) Rules, 2020-படி, ஒவ்வொரு E-commerce Platform-உம் ஒரு Grievance Officer-ஐ appoint பண்ணி, தகவல் public-ஆ காட்டணும்.</p>" +
+"<div class='box'>" +
+"<p><strong>பெயர்:</strong> <span class='placeholder'>[உங்க பெயர் போடுங்க]</span></p>" +
+"<p><strong>Designation:</strong> Grievance Officer, Egg-Treat</p>" +
+"<p><strong>Email:</strong> <span class='placeholder'>[Email போடுங்க]</span></p>" +
+"<p><strong>Phone:</strong> <span class='placeholder'>[Phone Number போடுங்க]</span></p>" +
+"<p><strong>Address:</strong> <span class='placeholder'>[Business Address போடுங்க]</span></p>" +
+"<p><strong>Response Time:</strong> 48 மணி நேரத்துக்குள் Acknowledge பண்ணி, 1 மாதத்துக்குள் தீர்வு காண முயற்சி</p>" +
+"</div>" +
+"<div class='note'>⚠️ Live payments ஆரம்பிக்கும் முன்ன, இந்த details-ஐ உங்க real தகவல் வச்சு நிரப்புங்க — இது சட்டப்படி கட்டாயம்.</div>"
+}
+};
+
+var order = ['terms','privacy','refund','grievance'];
+var tabsEl = document.getElementById('tabs');
+var contentEl = document.getElementById('content');
+
+function render(key) {
+contentEl.innerHTML = "<h2 style='font-size:20px;margin-top:0;'>" + sections[key].title + "</h2>" + sections[key].body;
+order.forEach(function(k) {
+document.getElementById('tab-' + k).className = (k === key) ? 'tab active' : 'tab';
+});
+}
+
+order.forEach(function(k) {
+var btn = document.createElement('div');
+btn.className = 'tab';
+btn.id = 'tab-' + k;
+btn.textContent = sections[k].label;
+btn.onclick = function() { render(k); };
+tabsEl.appendChild(btn);
+});
+
+render('terms');
+</script>
+</body>
+</html>
