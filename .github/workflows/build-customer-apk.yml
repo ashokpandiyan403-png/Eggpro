@@ -30,13 +30,11 @@ jobs:
           mkdir -p www
           cp egg-pro-customer.html www/index.html
 
-      - name: Initialize npm
+            - name: Initialize npm
         run: |
           npm init -y
-          npm install @capacitor/core@7 @capacitor/android@7
-@capacitor/geolocation@7
+          npm install @capacitor/core@7 @capacitor/android@7 @capacitor/geolocation@7
           npm install -D @capacitor/cli@7
-
       - name: Create Capacitor config
         run: |
           cat > capacitor.config.json <<'EOF'
