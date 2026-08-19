@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Egg-Pro — Customer</title>
+<title>Egg-Treat — Customer</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -68,7 +68,7 @@ e('form', { onSubmit: submit, style: { width: '100%', maxWidth: 384, background:
 e('div', { style: { display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' } },
 e('div', { style: { width: 36, height: 36, borderRadius: 18, background: '#E8A33D', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, '🥚'),
 e('div', null,
-e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Pro'),
+e('p', { style: { fontWeight: 'bold', color: '#1C1410', margin: 0 } }, 'Egg-Treat'),
 e('p', { style: { fontSize: 11, color: '#8A6D3B', margin: 0 } }, mode === 'login' ? 'Login' : 'Sign Up')
 )
 ),
@@ -434,7 +434,7 @@ var options = {
 key: RAZORPAY_KEY_ID,
 amount: order.amount,
 currency: "INR",
-name: "Egg-Pro",
+name: "Egg-Treat",
 description: "Order Payment",
 order_id: order.id,
 handler: function(response) {
@@ -536,7 +536,7 @@ setOrderId(newOrder.id);
 setOrderStatus("placed");
 // Receipt text தயார் பண்றோம் — Order confirm ஆனதும் Customer WhatsApp/SMS-ல் share பண்ணிக்கலாம் (company claim-க்கும் use ஆகும்)
 var lines = [];
-lines.push("🥚 Egg-Pro Receipt");
+lines.push("🥚 Egg-Treat Receipt");
 lines.push("Order #" + newOrder.id + " — " + new Date().toLocaleString('en-IN'));
 lines.push("");
 Object.keys(cart).forEach(function(id) {
@@ -549,7 +549,7 @@ lines.push("டெலிவரி கட்டணம்: " + money(deliveryFee))
 lines.push("மொத்த விலை (Tax Included): " + money(grandTotal));
 lines.push("Delivery Address: " + addressText);
 lines.push("");
-lines.push("நன்றி — Egg-Pro");
+lines.push("நன்றி — Egg-Treat");
 setReceiptText(lines.join("\n"));
 var firstRest = cartRestaurants[0];
 if (firstRest && firstRest.latitude) { setTrackRestaurantLatLng({ lat: firstRest.latitude, lng: firstRest.longitude }); }
@@ -599,7 +599,7 @@ return e('p', { key: s.key, style: { fontWeight: done ? 700 : 400, color: done ?
 (trackRestaurantLatLng || addressLatLng) ? e(TrackingMap, { restaurantLatLng: trackRestaurantLatLng, addressLatLng: addressLatLng, riderId: trackRiderId }) : null,
 receiptText ? e('button', { onClick: function(){
 if (navigator.share) {
-navigator.share({ title: 'Egg-Pro Receipt', text: receiptText }).catch(function(){});
+navigator.share({ title: 'Egg-Treat Receipt', text: receiptText }).catch(function(){});
 } else if (navigator.clipboard) {
 navigator.clipboard.writeText(receiptText).then(function(){ alert("Receipt Copy ஆயிடுச்சு! WhatsApp/SMS-ல் Paste பண்ணி அனுப்பலாம்."); });
 } else {
@@ -698,7 +698,7 @@ return order.map(function(k) { return groups[k]; });
 return e('div', { style: { minHeight: '100vh', paddingBottom: 220 } },
 e('div', { style: { background: '#1C1410', color: 'white', padding: 16, display: 'flex', justifyContent: 'space-between' } },
 e('div', null,
-e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🥚 Egg-Pro'),
+e('p', { style: { fontWeight: 'bold', margin: 0 } }, '🥚 Egg-Treat'),
 e('p', { style: { fontSize: 11, color: '#E8A33D', margin: 0 } }, 'Only Egg Dishes')
 ),
 e('button', { onClick: function(){ supabase.auth.signOut(); }, style: { color: '#C9BBA8', background: 'none', border: 'none' } }, '⎋')
