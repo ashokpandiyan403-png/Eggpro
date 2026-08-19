@@ -49,7 +49,7 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Install Android permissions
+      - name: Add Android Location permissions
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -57,28 +57,25 @@ jobs:
           p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
 
-          permissions = '''
+          location_permissions = """
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-              <uses-permission android:name="android.permission.INTERNET" />
-          '''
+          """
 
           if "android.permission.ACCESS_FINE_LOCATION" not in s:
-              s = s.replace("<manifest", "<manifest", 1)
-              pos = s.find(">")
-              s = s[:pos+1] + permissions + s[pos+1:]
+              s = s.replace(
+                  "<application",
+                  location_permissions + "\n    <application",
+                  1
+              )
 
           p.write_text(s)
+          print("Location permissions added successfully.")
           PY
 
-      - name: Create EggPro launcher icon
+      - name: Create EggPro icon
         run: |
           mkdir -p android/app/src/main/res/drawable
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
 
           cat > android/app/src/main/res/drawable/eggpro_icon.xml <<'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -101,29 +98,34 @@ jobs:
           </vector>
           EOF
 
-      - name: Set launcher icon
+      - name: Set EggPro launcher icon
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path("android/app/src/main/AndroidManifest.xml")
           s = p.read_text()
 
-          s = s.replace(
-              'android:icon="@mipmap/ic_launcher"',
-              'android:icon="@drawable/eggpro_icon"'
-          )
-
-          s = s.replace(
-              'android:icon="@mipmap/ic_launcher"',
-              'android:icon="@drawable/eggpro_icon"'
+          s = re.sub(
+              r'android:icon="@[^"]+"',
+              'android:icon="@drawable/eggpro_icon"',
+              s,
+              count=1
           )
 
           p.write_text(s)
+          print("EggPro launcher icon configured.")
           PY
 
       - name: Sync Android
         run: npx cap sync android
+
+      - name: Verify Android Manifest
+        run: |
+          echo "===== AndroidManifest.xml ====="
+          cat android/app/src/main/AndroidManifest.xml
+          echo "================================"
 
       - name: Build Debug APK
         run: |
