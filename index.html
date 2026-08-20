@@ -419,6 +419,7 @@ var [paymentDone, setPaymentDone] = React.useState(false);
 var [payBusy, setPayBusy] = React.useState(false);
 var [rzpPaymentId, setRzpPaymentId] = React.useState(null);
 var [rzpOrderId, setRzpOrderId] = React.useState(null);
+var [paymentMethod, setPaymentMethod] = React.useState(null);
 
 function startPayment() {
 if (typeof Razorpay === 'undefined') { alert("Payment library load ஆகல. Internet சரி பாருங்க."); return; }
@@ -500,7 +501,7 @@ perRestaurantSubtotal[m.restaurant_id] = (perRestaurantSubtotal[m.restaurant_id]
 supabase.from("orders").insert({
 customer_id: session.user.id, restaurant_id: cartRestaurantIds[0], restaurant_ids: cartRestaurantIds,
 delivery_address_id: addressId, subtotal: cartTotal, delivery_fee: deliveryFee, gst_amount: gstAmount, status: "placed",
-payment_status: paymentDone ? "paid" : "pending",
+payment_status: paymentMethod === 'cod' ? "cod" : (paymentDone ? "paid" : "pending"),
 razorpay_order_id: rzpOrderId, razorpay_payment_id: rzpPaymentId,
 dealer_id: dealerId,
 dealer_commission_amount: dealerCommission,
@@ -772,9 +773,21 @@ e('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 10, display: 'f
 e('span', null, 'மொத்த விலை'), e('span', null, money(grandTotal))
 ),
 !paymentDone ? e('div', null,
-e('button', { onClick: startPayment, disabled: payBusy,
+e('p', { style: { fontSize: 12, fontWeight: 600, color: '#8A6D3B', marginBottom: 8 } }, 'Payment Method தேர்ந்தெடுங்க'),
+e('div', { style: { display: 'flex', gap: 8, marginBottom: 10 } },
+e('button', { onClick: function(){ setPaymentMethod('online'); },
+style: { flex: 1, padding: 10, borderRadius: 12, border: paymentMethod === 'online' ? '2px solid #5B7553' : '1px solid #EEE0C8',
+background: paymentMethod === 'online' ? '#F0F7EE' : 'white', color: '#1C1410', fontWeight: 600, fontSize: 12 } }, '💳 Online Payment'),
+e('button', { onClick: function(){ setPaymentMethod('cod'); },
+style: { flex: 1, padding: 10, borderRadius: 12, border: paymentMethod === 'cod' ? '2px solid #5B7553' : '1px solid #EEE0C8',
+background: paymentMethod === 'cod' ? '#F0F7EE' : 'white', color: '#1C1410', fontWeight: 600, fontSize: 12 } }, '💵 Cash on Delivery')
+),
+paymentMethod === 'online' ? e('button', { onClick: startPayment, disabled: payBusy,
 style: { width: '100%', background: '#5B7553', color: 'white', padding: 12, borderRadius: 14, border: 'none', fontWeight: 600, marginBottom: 8 } },
-payBusy ? '⏳ Payment window திறக்குது...' : '💳 ' + money(grandTotal) + ' Pay பண்ணுங்க')
+payBusy ? '⏳ Payment window திறக்குது...' : '💳 ' + money(grandTotal) + ' Pay பண்ணுங்க') :
+paymentMethod === 'cod' ? e('button', { onClick: placeOrder, disabled: placing || !addressId || !addressLatLng,
+style: { width: '100%', background: (!addressId || !addressLatLng ? '#C9BBA8' : '#1C1410'), color: 'white', padding: 14, borderRadius: 16, border: 'none', fontWeight: 600 } },
+!addressLatLng ? '📍 மேலே Location set பண்ணுங்க' : placing ? 'Placing order...' : ('💵 ' + cartCount + ' items · ' + money(grandTotal) + ' · COD-ல் Order செய்')) : null
 ) : e('div', null,
 e('p', { style: { fontSize: 12, color: '#5B7553', textAlign: 'center', marginBottom: 8, fontWeight: 600 } }, '✅ Payment வெற்றிகரமாக verify ஆனது'),
 e('button', { onClick: placeOrder, disabled: placing || !addressId || !addressLatLng,
