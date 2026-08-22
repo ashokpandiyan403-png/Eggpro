@@ -198,10 +198,13 @@ function OrdersTab(props) {
 var restaurantId = props.restaurantId;
 var [items, setItems] = React.useState([]);
 var [loading, setLoading] = React.useState(true);
+var [loadErr, setLoadErr] = React.useState("");
 
 function load() {
+setLoadErr("");
 supabase.from("order_items").select("id, order_id, name_ta, name_en, unit_price, quantity, orders(id, status, created_at)")
 .eq("restaurant_id", restaurantId).then(function(res) {
+if (res.error) { setLoadErr(res.error.message); setLoading(false); return; }
 setItems(res.data || []); setLoading(false);
 });
 }
@@ -237,6 +240,8 @@ var NEXT_LABEL = { placed: '✅ ஏற்றுக்கொள்ள', accepted:
 if (loading) return e('p', { style: { padding: 16, textAlign: 'center', color: '#8A6D3B' } }, 'Loading...');
 
 return e('div', { style: { padding: 16 } },
+loadErr ? e('p', { style: { color: '#C1442E', fontSize: 12, textAlign: 'center', padding: 12, background: '#FCE8E8', borderRadius: 10, marginBottom: 10 } }, '⚠️ ' + loadErr) : null,
+e('p', { style: { fontSize: 10, color: '#C9BBA8', textAlign: 'center', marginBottom: 8 } }, 'Restaurant ID: ' + (restaurantId || 'இல்லை') + ' · Items கிடைச்சது: ' + items.length),
 activeOrders.length === 0 ? e('p', { style: { color: '#C9BBA8', textAlign: 'center', padding: 20 } }, 'புதிய Orders இல்லை') :
 activeOrders.map(function(g) {
 var o = g.order;
